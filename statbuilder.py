@@ -61,6 +61,14 @@ def get_command_line_args():
     return parser.parse_args()
 
 # TODO
+# thoughts on creating an object
+# class CongDistrict(object):
+#    
+#    def __init__(self, state, district):
+#        self.state = state
+#        self.district = district
+
+# TODO
 # def find_tracts_in_district(state='48', district='07'):
 
 
@@ -117,8 +125,8 @@ def find_blockgroups_in_district(state='48', district='07'):
     bgs_in_district[['BLKGRPCE','COUNTYFP', 'STATEFP', 'TRACTCE', 'GEOID']].to_csv('data/' + bgs_output +'.csv')
 
 
-def get_census_fields(api, fields, year=2015,state='48',district='07'):
-    """Query the census 
+def get_blockgroup_fields(api, fields, year=2015,state='48',district='07'):
+    """Retrieve the census fields for the block groups in a Congressional District
     Args:
         api: The state where the Congressional district is in
         year: Congressional district
@@ -149,6 +157,13 @@ def get_census_fields(api, fields, year=2015,state='48',district='07'):
         census_fields.append(bg_stats)
 
     return census_fields
+
+# TODO
+# def dem_lean_by_age():
+
+
+# TODO
+# def blockgroup_fields_to_json():
 
 
 def main():
@@ -201,9 +216,9 @@ def main():
                 'B01001_049E'  # Female:!!85 years and over
             )
 
-    census_fields = get_census_fields(api=census_api_key, fields=fields)
-
-    print census_fields
+    fields_in_bgs = get_blockgroup_fields(api=census_api_key, fields=fields)
+    
+    print fields_in_bgs
 
 
 if __name__ == "__main__":
