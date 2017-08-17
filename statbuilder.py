@@ -11,6 +11,8 @@
 import os
 import argparse
 import ConfigParser
+import json
+import re
 
 import pandas as pd
 import geopandas as gpd
@@ -53,6 +55,8 @@ def get_command_line_args():
     Raises:
         Nothing (yet)
     """
+    # TODO
+    # take state and district
     _version=VERSION
     parser = argparse.ArgumentParser(description='Build stats for a particular Congressional District')
     parser.add_argument('-v','--version',action='version', version='%(prog)s %(version)s' % {"prog": parser.prog, "version": _version})
@@ -61,7 +65,7 @@ def get_command_line_args():
     return parser.parse_args()
 
 # TODO
-# thoughts on creating an object
+# thoughts on creating an object?
 # class CongDistrict(object):
 #    
 #    def __init__(self, state, district):
@@ -86,7 +90,7 @@ def find_blockgroups_in_district(state='48', district='07'):
         Nothing
     """
     # TODO
-    # dynamic to state and district
+    # process based on state and district args
     # set based on args: state, distric
     bgs_output = 'district-blockgroups'
     bgs_outputGeoJSON = 'geojson/' + bgs_output + '.geojson'
@@ -122,39 +126,48 @@ def find_blockgroups_in_district(state='48', district='07'):
     bgs_in_district.to_file(bgs_outputGeoJSON, driver='GeoJSON')
 
     # Create csv file of geo units
-    bgs_in_district[['BLKGRPCE','COUNTYFP', 'STATEFP', 'TRACTCE', 'GEOID']].to_csv('data/' + bgs_output +'.csv')
+    bgs_in_district[['BLKGRPCE','COUNTYFP', 'STATEFP', 'TRACTCE', 'GEOID']].to_csv('static/data/' + bgs_output +'.csv')
 
 
-def get_blockgroup_fields(api, fields, year=2015,state='48',district='07'):
-    """Retrieve the census fields for the block groups in a Congressional District
+def get_blockgroup_data(api, fields, year=2015, state='48', district='07'):
+    """Retrieve the census data for the block groups in a Congressional District
     Args:
-        api: The state where the Congressional district is in
-        year: Congressional district
-        fields: 
-        state: 
-        district: 
+        api: Census api key
+        fields: the fields to query from api.census.gov; 
+            See e.g., https://api.census.gov/data/2015/acs5/variables.html
+        year: The year the census data was collected
+        state: The state where the Congressional district is in
+        district: The Congressional district
     Returns:
-        census_fields: 
+        census_fields: a list of dictionaries storing the blockgroup results
     Raises:
         Nothing
     """
     # TODO make dynamic to state and district
-    bgs_in_district = pd.read_csv('data/tx7-bgs.csv')
+    bgs_in_district = pd.read_csv('static/data/tx7-bgs.csv')
     
     # Setup Census query
     census_query = Census(api, year=year)
-    print fields
     census_fields = []
+    
+    num_of_bgs = len(bgs_in_district)
+    i = 0.0
     for bg_index, bg_row in bgs_in_district.iterrows():
+        # TODO
+        # print percent complete
+        status = r"%10d  [%3.2f%%]" % (i, i * 100. / num_of_bgs)
+        status = status + chr(8)*(len(status)+1)
+        print status,
         bg_stats = census_query.acs5.state_county_blockgroup(
                         fields=fields, 
                         state_fips=bg_row['STATEFP'], 
                         county_fips=bg_row['COUNTYFP'], 
                         blockgroup=bg_row['BLKGRPCE'],
                         tract=bg_row['TRACTCE']
-                    )
-        print bg_stats[0]
+                    )[0]
+        bg_stats['GEOID'] = bg_row['GEOID']
         census_fields.append(bg_stats)
+        i = i + 1
 
     return census_fields
 
@@ -162,8 +175,50 @@ def get_blockgroup_fields(api, fields, year=2015,state='48',district='07'):
 # def dem_lean_by_age():
 
 
-# TODO
-# def blockgroup_fields_to_json():
+
+def to_json(data, out_filename='static/data/out.json'):
+    """Convert data to json
+    Args: 
+        data: a python data structure
+        out_filename: the file the data is saved to 
+    Returns: 
+        Nothing
+    Raises:
+        Nothing (yet)
+    """
+    with open(out_filename, 'w') as outfile:  
+        json.dump(data, outfile)
+
+
+def get_census_fields(table, year=2015):
+    """Return the fields in a census table
+    Args: 
+        table: 
+        year:  
+    Returns: 
+        fields: 
+        labels: 
+    Raises:
+        Nothing (yet)
+    """
+    # TODO 
+    # check:
+    #   if variables_<year>.json does not exist
+    #       download variables for the given year
+    #           example url: https://api.census.gov/data/2015/acs5/variables.json
+    #       save the file to variables_<>.json
+    variables_file = 'static/data/variables_' + str(year) + '.json'
+    fields = []
+    labels = {}
+
+    with open(variables_file) as variables:
+        data = json.load(variables)
+        for key in data['variables']:
+            if re.match(table+'_[0-9]*E', key):
+                fields.append(key)
+                labels[key]=data['variables'][key]['label']
+    
+    return fields, labels
 
 
 def main():
@@ -172,53 +227,16 @@ def main():
     args = get_command_line_args()
     settings_dict = read_settings(args)
     census_api_key = settings_dict['census_api_key']
+    year = 2015
     
-    # Table B01001, Sex by Age
-    fields = (
-                'B01001_001E', # Total
-                'B01001_007E', # Male:!!18 and 19 years
-                'B01001_008E', # Male:!!20 years
-                'B01001_009E', # Male:!!21 years
-                'B01001_010E', # Male:!!22 to 24 years
-                'B01001_011E', # Male:!!25 to 29 years
-                'B01001_012E', # Male:!!30 to 34 years
-                'B01001_013E', # Male:!!35 to 39 years
-                'B01001_014E', # Male:!!40 to 44 years
-                'B01001_015E', # Male:!!45 to 49 years
-                'B01001_016E', # Male:!!50 to 54 years
-                'B01001_017E', # Male:!!55 to 59 years
-                'B01001_018E', # Male:!!60 and 61 years
-                'B01001_019E', # Male:!!62 to 64 years
-                'B01001_020E', # Male:!!65 and 66 years
-                'B01001_021E', # Male:!!67 to 69 years
-                'B01001_022E', # Male:!!70 to 74 years
-                'B01001_023E', # Male:!!75 to 79 years
-                'B01001_024E', # Male:!!80 to 84 years
-                'B01001_025E', # Male:!!85 years and over
-                'B01001_031E', # Female:!!18 and 19 years
-                'B01001_032E', # Female:!!20 years
-                'B01001_033E', # Female:!!21 years
-                'B01001_034E', # Female:!!22 to 24 years
-                'B01001_035E', # Female:!!25 to 29 years
-                'B01001_036E', # Female:!!30 to 34 years
-                'B01001_037E', # Female:!!35 to 39 years
-                'B01001_038E', # Female:!!40 to 44 years
-                'B01001_039E', # Female:!!45 to 49 years
-                'B01001_040E', # Female:!!50 to 54 years
-                'B01001_041E', # Female:!!55 to 59 years
-                'B01001_042E', # Female:!!60 and 61 years
-                'B01001_043E', # Female:!!62 to 64 years
-                'B01001_044E', # Female:!!65 and 66 years
-                'B01001_045E', # Female:!!67 to 69 years
-                'B01001_046E', # Female:!!70 to 74 years
-                'B01001_047E', # Female:!!75 to 79 years
-                'B01001_048E', # Female:!!80 to 84 years
-                'B01001_049E'  # Female:!!85 years and over
-            )
+    fields, labels = get_census_fields("B01001")
 
-    fields_in_bgs = get_blockgroup_fields(api=census_api_key, fields=fields)
+    print "Getting Sex by Age stats for TX-07"
+    data_in_bgs = get_blockgroup_data(api=census_api_key, fields=fields, year=year)
     
-    print fields_in_bgs
+    to_json(data_in_bgs, "static/data/sex_by_age_in_tx7.json")
+
+    to_json([fields, labels], "static/data/labels.json")
 
 
 if __name__ == "__main__":
