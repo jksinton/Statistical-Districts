@@ -34,9 +34,8 @@ html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
 }
 #data-box {
   	top: 10px;
-  	left: 500px;
   	height: 45px;
-  	line-height: 45px;
+  	line-height: 35px;
   	display: none;
 }
 #variable {
@@ -61,7 +60,7 @@ html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
 	font-size: 1.0em;
 	line-height: 1.0em;
 }
-#data-value { font-size: 2.0em; font-weight: bold }
-#data-label { font-size: 2.0em; font-weight: normal; padding-right: 10px; }
+#data-value { font-size: medium; font-weight: bold }
+#data-label { font-size: medium; font-weight: normal; padding-right: 10px; }
 #data-label:after { content: ':' }
 #data-caret { margin-left: -5px; display: none; font-size: 14px; width: 14px}

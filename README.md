@@ -26,6 +26,6 @@ A program for creating an interactive map of Census data for select Congressiona
 5. Run the webserver
   `python statserver.py`
 
-6. View results in a webbrowser go to [localhost:8000](http://localhost:800)
+6. View results in a webbrowser go to [localhost:8000](http://localhost:8000)
 
 This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.
