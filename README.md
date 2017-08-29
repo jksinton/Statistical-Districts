@@ -20,8 +20,9 @@ A program for creating an interactive map of Census data for select Congressiona
 
 3. Set variables in settings files
 
-4. Build the stats for a Congressional District:
+4. TODO Build the stats for a Congressional District:
   `python statbuilder.py --state tx --district 7`
+   `statbuilder,py` currently only builds the stats for TX-07.
 
 5. Run the webserver
   `python statserver.py`

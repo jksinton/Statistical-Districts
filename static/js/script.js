@@ -18,6 +18,8 @@ var district_layer;
 var geounits_layer;
 var district_min = Number.MAX_VALUE; 
 var district_max = -Number.MAX_VALUE;
+var chart_intervals = 100;
+var barchart_data;
 
 function loadGoogleMapsAPI() {
     var script = document.createElement('script');
@@ -35,7 +37,7 @@ function initMap() {
 	 * get variable settings for a particular congressional district 
 	 */
 	var category = 'Age';
-	var category_type = 'PID';
+	var category_type = 'Census';
 
 	var uluru = {lat: 29.8, lng: -95.6};
     map = new google.maps.Map(document.getElementById('map'), {
@@ -60,9 +62,9 @@ function initMap() {
 		strokeWeight: 3
 	});
 
-	geounits_layer.setStyle(styleFeature);
-	geounits_layer.addListener('mouseover', mouseInToRegion);
-    geounits_layer.addListener('mouseout', mouseOutOfRegion);
+	geounits_layer.setStyle(style_feature);
+	geounits_layer.addListener('mouseover', mouse_in_to_region);
+    geounits_layer.addListener('mouseout', mouse_out_of_region);
 
 	// fill in the options for the variable selection
 	// get category fields
@@ -75,10 +77,6 @@ function initMap() {
   		}
 	});	
 	
-	var controls = document.getElementById('controls');
-    map.controls[google.maps.ControlPosition.TOP_CENTER].push(controls);
-	controls.style.opacity = 1;
-	
 	var databox = document.getElementById('data-box');
     map.controls[google.maps.ControlPosition.RIGHT_TOP].push(databox);
 	
@@ -88,24 +86,30 @@ function initMap() {
 	set_select_box(fields, labels);
 	var select_box = document.getElementById('fields');
 	google.maps.event.addDomListener(select_box, 'change', function() {
-          clearData();
-          loadData(select_box.options[select_box.selectedIndex].value);
-    });
+		clear_data();
+        load_data(select_box.options[select_box.selectedIndex].value);
+        load_chart(select_box.options[select_box.selectedIndex].value);
 
-	fill_in_shapes();
+    });
+	init_chart(select_box.options[select_box.selectedIndex].value);
+	load_maps();
 }
 
-function fill_in_shapes() {
-	// wait for Google maps to finish loading and then load the top value fo the dropdown menu
+function load_maps() {
+	// wait for Google maps to finish loading and then do stuff
 	google.maps.event.addListenerOnce(map, 'idle', function() {
 		google.maps.event.trigger(document.getElementById('fields'), 'change');
+		
+		var controls = document.getElementById('controls');
+    	map.controls[google.maps.ControlPosition.TOP_CENTER].push(controls);
+		controls.style.opacity = 1;
 	});
 }
 
 // TODO change from embedded onclick to DOM populated onclicks
 function set_nav_behavior(){
 	var age_census = document.getElementById("age-census");
-	age_census.onclick = loadCategory('Age', 'Census');
+	age_census.onclick = load_category('Age', 'Census');
 }
 
 function set_select_box(fields, my_labels) {
@@ -125,20 +129,23 @@ function set_select_box(fields, my_labels) {
 	}
 }
 
-function loadCategory(category, category_type) {
+function load_category(category, category_type) {
 	var fields = categories[category][category_type]['fields'];
 	labels = categories[category][category_type]['labels'];
+	
+	console.log(labels);
 
 	set_select_box(fields, labels);
-	clearData();
+	clear_data();
+	google.maps.event.trigger(document.getElementById('fields'), 'change');
 
 	return false;
 }
 
-function loadData(selected_variable) {
-	data = {};
+function load_data(selected_variable) {
+	var data = {};
 	$.ajax({
-  		url: '/static/data/district-age.json',
+  		url: '/static/data/district-data.json',
   		async: false,
   		dataType: 'json',
   		success: function (json) {
@@ -149,7 +156,7 @@ function loadData(selected_variable) {
 	geounits_layer.forEach(function(feature){
 		var geoid = feature.getProperty('GEOID');
 		var data_value = parseInt(data[geoid.toString()][selected_variable]);
-
+		
 		// keep track of min and max values
 		if (data_value < district_min) {
 		  	district_min = data_value;
@@ -169,11 +176,10 @@ function loadData(selected_variable) {
 	  district_min.toString();
 	document.getElementById('variable-max').textContent =
 	  district_max.toString();
-
 }
 
 /** Removes census data from each shape on the map and resets the UI. */
-function clearData() {
+function clear_data() {
 	district_min = Number.MAX_VALUE;
 	district_max = -Number.MAX_VALUE;
 	geounits_layer.forEach(function(row) {
@@ -183,7 +189,7 @@ function clearData() {
 	document.getElementById('data-caret').style.display = 'none';
 }
 
-function styleFeature(feature) {
+function style_feature(feature) {
 	var low = [5, 69, 54];  // color of smallest datum
 	var high = [151, 83, 34];   // color of largest datum
 
@@ -220,7 +226,7 @@ function styleFeature(feature) {
 	};
 }
 
-function mouseInToRegion(e) {
+function mouse_in_to_region(e) {
 	// set the hover state so the setStyle function can change the border
 	e.feature.setProperty('state', 'hover');
 	var geoid = e.feature.getProperty('GEOID');
@@ -237,9 +243,84 @@ function mouseInToRegion(e) {
     document.getElementById('data-caret').style.paddingLeft = percent + '%';
 }
 
-function mouseOutOfRegion(e) {
+function mouse_out_of_region(e) {
 	// reset the hover state, returning the border to normal
 	e.feature.setProperty('state', 'normal');
 }
 
+function init_chart(selected_variable) {
+	var data = {};
+	$.ajax({
+  		url: '/static/data/district-data.json',
+  		async: false,
+  		dataType: 'json',
+  		success: function (json) {
+    		data = json;
+  		}
+	});
+	var barchart_values = new Array(chart_intervals).fill(0)
+	var barchart_labels = [];
 
+	barchart_data = {
+			labels: barchart_labels,
+			datasets: [{
+				label: labels[selected_variable],
+				backgroundColor: 'rgb(255, 99, 132)',
+				borderColor: 'rgb(255, 99, 132)',
+				data: barchart_values,
+			}]
+		};
+
+	var ctx = document.getElementById('bar_chart').getContext('2d');
+	
+	window.bar_chart = new Chart(ctx, {
+		// The type of chart we want to create
+		type: 'bar',
+
+		// The data for our dataset
+		data: barchart_data,
+
+		// Configuration options go here
+		options: {}
+	});
+}
+
+function load_chart(selected_variable) {
+	var data = {};
+	$.ajax({
+  		url: '/static/data/district-data.json',
+  		async: false,
+  		dataType: 'json',
+  		success: function (json) {
+    		data = json;
+  		}
+	});
+	var barchart_values = new Array(chart_intervals).fill(0)
+	var barchart_labels = [];
+	for (var i = 0; i < barchart_values.length; i++) {
+		var interval = Math.floor(
+			((i + 1) * ((district_max - district_min) / chart_intervals)) + district_min
+		);
+		barchart_labels[i] = interval.toString();
+	}
+	geounits_layer.forEach(function(feature){
+		var geoid = feature.getProperty('GEOID');
+		var data_value = parseInt(data[geoid.toString()][selected_variable]);
+		var interval = Math.floor(
+			(chart_intervals - 1) *
+			((data_value - district_min) /
+			(district_max - district_min))
+		);
+		barchart_values[interval] = barchart_values[interval] + 1;
+	});
+	console.log(barchart_values);
+	console.log(barchart_labels);
+	barchart_data.labels = barchart_labels;
+	barchart_data.datasets = [{
+				label: labels[selected_variable],
+				backgroundColor: 'rgb(255, 99, 132)',
+				borderColor: 'rgb(255, 99, 132)',
+				data: barchart_values,
+			}];
+	window.bar_chart.update();
+}

@@ -1,12 +1,22 @@
 <!DOCTYPE HTML>
 <html>
     <head>
+<!--
+	This file is part of Statistical Districts.
+
+	Copyright (c) 2017, James Sinton
+	All rights reserved.
+ 
+	Released under the BSD 3-Clause License
+	See https://github.com/jksinton/Statistical-Districts/blob/master/LICENSE	
+-->
         <meta charset="UTF-8">
         <title>Statistical Districts</title>
 		<link rel="stylesheet" type="text/css" href={{ static_url("css/style.css") }}>
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
 		<script src="https://code.jquery.com/jquery-3.2.1.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
 		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.6.0/Chart.js"></script>
 		<script src={{ static_url("js/settings.js") }}></script>
 		<script src={{ static_url("js/script.js") }}></script>
 	</head>
@@ -42,25 +52,30 @@
 							<li>Voting Precinct</li>
 							<li>Age</li>
 							<ul>
-								<li><a id="age-census" onclick="loadCategory('Age', 'Census')" href="#">Census</a></li>
-								<li><a id="age-pid" onclick="loadCategory('Age', 'PID')" href="#">PID</a></li>
+								<li><a id="age-census" onclick="load_category('Age', 'Census')" href="#">Census</a></li>
+								<li><a id="age-pid" onclick="load_category('Age', 'PID')" href="#">PID</a></li>
 							</ul>
 							<li>Race</li>
 							<ul>
-								<li>Census</li>
-								<li>PID</li>
+								<li><a id="race-census" onclick="load_category('Race', 'Census')" href="#">Census</a></li>
+								<li><a id="race-pid" onclick="load_category('Race', 'PID')" href="#">PID</a></li>
 							</ul>
 							<li>Income</li>
 							<ul>
-								<li>Census</li>
-								<li>PID</li>
+								<li><a id="income-census" onclick="load_category('Income', 'Census')" href="#">Census</a></li>
+								<li><a id="income-pid" onclick="load_category('Income', 'PID')" href="#">PID</a></li>
 							</ul>
 							<li>Education</li>
 							<ul>
-								<li>Census</li>
-								<li>PID</li>
+								<li><a id="edu-census" onclick="load_category('Education', 'Census')" href="#">Census</a></li>
+								<li><a id="edu-pid" onclick="load_category('Education', 'PID')" href="#">PID</a></li>
 							</ul>
-						</ul>
+							<li>Election Results</li>
+							<ul>
+								<li><a id="elec-2016" onclick="loadElectionResults(2016)" href="#">2016</a></li>
+								<li><a id="elec-2014" onclick="loadElectionResults(2014)" href="#">2014</a></li>
+							</ul>
+						</ul> <!--End ul nav-list -->
 					</nav> <!--End nav -->
 				</div> <!--End col -->
 			</div> <!--End row -->
@@ -68,7 +83,7 @@
 				<div class="col-lg-12">
 					<p></p>
 					<p>TODO:  Graph showing change over time</p>
-					<p>TODO:  Bar graph ranking Tract, BG or Voting Precincts</p>
+					<canvas id="bar_chart"></canvas>
 				</div> <!--End col -->
 			</div> <!--End row -->
 		</div> <!--End container -->

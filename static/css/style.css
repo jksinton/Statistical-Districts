@@ -8,7 +8,7 @@
  *
  */
 
-html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+html, body { height: 100%; margin: 0; padding: 0; }
 #map {
 	width: 100%;
 	height: 700px;
@@ -27,6 +27,7 @@ html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
   	border: rgb(229, 229, 229) 1px solid;
 }
 #controls {
+	opacity: 0;
   	top: 10px;
   	left: 110px;
   	width: 360px;
