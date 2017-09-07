@@ -38,10 +38,15 @@ def read_settings(args):
     Args: 
         args: argparse.ArgumentParser object that stores command line arguments
     Returns: 
-        settingsDict: A dictionary holding the argument(s)
+        settings_dict: A dictionary holding the argument(s)
     Raises:
         Nothing (yet)
     """
+    # Default values
+    state = 48
+    district = 7
+    year = '2015'
+    
     # Set values in settings.ini
     settings = ConfigParser.ConfigParser()
     settings.read('settings.ini') # change example.settings.ini to settings.ini
@@ -49,7 +54,16 @@ def read_settings(args):
     # Census API Key
     census_api_key = settings.get( 'census', 'CENSUS_API_KEY' )
 
-    settings_dict = { "census_api_key": census_api_key }
+    if args.year:
+        year=args.year
+
+    settings_dict = { 
+                "census_api_key": census_api_key,
+                "state": state,
+                "district": district,
+                "year": year
+            }
+    
 
     return settings_dict
 
@@ -67,7 +81,9 @@ def get_command_line_args():
     # provide state, district, and year as options
     _version=VERSION
     parser = argparse.ArgumentParser(description='Build stats for a particular Congressional District')
-    parser.add_argument('-v','--version',action='version', version='%(prog)s %(version)s' % {"prog": parser.prog, "version": _version})
+    parser.add_argument('-y','--year',help='Year of Census data to build')
+    parser.add_argument('-v','--version',action='version', 
+            version='%(prog)s %(version)s' % {"prog": parser.prog, "version": _version})
     parser.add_argument('-d','--debug',help='print debug messages',action="store_true")
 
     return parser.parse_args()
@@ -85,11 +101,12 @@ def download_file(url, dl_filename):
 
     See https://stackoverflow.com/questions/22676/how-do-i-download-a-file-over-http-using-python/22776#22776
     """
+    print url
     url_object=urllib2.urlopen(url)
-    dl_file_Ooject=open(dl_filename,'wb')
+    dl_file_object=open(dl_filename,'wb')
     meta = url_object.info()
-    fileSize = int(meta.getheaders("Content-Length")[0])
-    print "Downloading: %s Bytes: %s" % (dlFileName.split('/')[-1], fileSize)
+    file_size = int(meta.getheaders("Content-Length")[0])
+    print "Downloading: %s Bytes: %s" % (dl_filename.split('/')[-1], file_size)
     
     current_file_size = 0
     block_size = 8192
@@ -106,7 +123,7 @@ def download_file(url, dl_filename):
     dl_file_object.close()
 
 
-def extractall(fn,dst="."):
+def extract_all(fn,dst="."):
     """extracts archive to dst
     Args:
         fn: filename
@@ -132,7 +149,7 @@ def extractall(fn,dst="."):
 # def find_tracts_in_district(state='48', district='07'):
 
 
-def find_blockgroups_in_district(state=48, district=7, year=2015):
+def find_blockgroups_in_district(state=48, district=7, year='2015'):
     """Find the geographical units that intersect with a Congressional District.
     Args:
         state: The state where the Congressional district is in
@@ -192,7 +209,7 @@ def find_blockgroups_in_district(state=48, district=7, year=2015):
     bgs_in_district[['BLKGRPCE','COUNTYFP', 'STATEFP', 'TRACTCE', 'GEOID']].to_csv('static/data/' + bgs_output +'.csv')
 
 
-def get_blockgroup_census_data(api, fields, census_data = {}, state=48, district=7, year=2015):
+def get_blockgroup_census_data(api, fields, census_data = {}, state=48, district=7, year='2015'):
     """Retrieve the census data for the block groups in a Congressional District
     Args:
         api: Census api key
@@ -206,12 +223,18 @@ def get_blockgroup_census_data(api, fields, census_data = {}, state=48, district
     Raises
         Nothing
     """
+    blockgroup_key = 'bg'
+    if year not in census_data.keys():
+        census_data[year] = { blockgroup_key: {} }
+    else:
+        if blockgroup_key not in census_data[year].keys():
+            census_data[year][blockgroup_key] = { }
     # TODO make dynamic to state and district
+    # also read a json file
     bgs_in_district = pd.read_csv('static/data/tx7-blockgroups.csv')
     
     # Setup Census query
     census_query = Census(api, year=year)
-    
     num_of_bgs = len(bgs_in_district)
     i = 0.0
     for bg_index, bg_row in bgs_in_district.iterrows():
@@ -226,12 +249,45 @@ def get_blockgroup_census_data(api, fields, census_data = {}, state=48, district
                         blockgroup=bg_row['BLKGRPCE'],
                         tract=bg_row['TRACTCE']
                     )[0]
-        
-        if str(bg_row['GEOID']) in census_data.keys():
-            census_data[ str(bg_row['GEOID']) ].update(bg_stats)
+        geoid = str(bg_row['GEOID'])
+        if geoid in census_data[year][blockgroup_key].keys():
+            census_data[year][blockgroup_key][geoid].update(bg_stats)
         else:
-            census_data[ str(bg_row['GEOID']) ] = bg_stats
+            census_data[year][blockgroup_key][geoid] = bg_stats
         i = i + 1
+
+    return census_data
+
+def get_district_census_data(api, fields, census_data = {}, state=48, district=7, year='2015'):
+    """Retrieve the census data for the block groups in a Congressional District
+    Args:
+        api: Census api key
+        fields: the fields to query from api.census.gov; 
+            See e.g., https://api.census.gov/data/2015/acs5/variables.html
+        year: The year the census data was collected
+        state: The state where the Congressional district is in
+        district: The Congressional district
+    Returns:
+        census_data: a list of dictionaries storing the blockgroup results
+    Raises
+        Nothing
+    """
+    district_key = 'district'
+    if year not in census_data.keys():
+        census_data[year] = { district_key: {} }
+    else:
+        if district_key not in census_data[year].keys():
+            census_data[year][district_key] = { }
+    
+    # Setup Census query
+    census_query = Census(api, year=year)
+    district_stats = census_query.acs5.get(
+                    fields,
+                    {   'for': 'congressional district:' + str(district),
+                        'in': 'state:' + str(state)
+                    }
+                )[0]
+    census_data[year][district_key].update(district_stats)
 
     return census_data
 
@@ -250,7 +306,7 @@ def to_json(data, out_filename='static/data/out.json'):
         json.dump(data, outfile)
 
 
-def get_census_fields_by_table(table, year=2015):
+def get_census_fields_by_table(table, year='2015'):
     """Return the fields in a census table
     Args: 
         table: 
@@ -262,13 +318,11 @@ def get_census_fields_by_table(table, year=2015):
     Raises:
         Nothing (yet)
     """
-    # TODO 
-    # check:
-    #   if variables_<year>.json does not exist
-    #       download variables for the given year
-    #           example url: https://api.census.gov/data/2015/acs5/variables.json
-    #       save the file to variables_<>.json
-    variables_file = 'static/data/variables_' + str(year) + '.json'
+    variables_file = 'static/data/variables_' + year + '.json'
+    if not os.path.isfile(variables_file):
+        url = 'https://api.census.gov/data/' + year + '/acs5/variables.json'
+        download_file(url, variables_file)
+
     fields = []
     labels = {}
 
@@ -282,28 +336,49 @@ def get_census_fields_by_table(table, year=2015):
     return fields, labels
 
 
-def make_pid_and_class_data(
-        census_data_in_district, 
-        pid_classes, 
-        census_classes, 
-        pid_total_field, 
-        data_in_district={} ):
-    """Calculate the PID classes and Census classes
+def load_district_data(district_data_file='static/data/district-data.json', 
+        state=48, district=7, year='2015'):
+    """
+    Args:
+        district_data_file:
+        state:
+        district:
+        year:
+    Returns: 
+        district_data:
+    Raises:
+        Nothing (yet)
+    """
+    district_data={}
+    if os.path.isfile(district_data_file):
+        with open(district_data_file) as district_json:
+            district_data = json.load(district_json)
+
+    return district_data
+
+def make_pid_and_class_data(census_data_in_district, pid_classes, 
+        census_classes, pid_total_field, district_data={}, year='2015', geo_key='bg' ):
+    """Calculate the PID classes and populate Census classes
     Args:
         census_data_in_district:
         pid_class:
         census_class:
     Returns: 
-        data_in_district:
+        district_data:
     Raises:
         Nothing (yet)
     """
-
-    for geoid, census_data in census_data_in_district.iteritems():
-        if geoid not in 'District':
+    if year not in district_data.keys():
+        district_data[year] = { geo_key: {} }
+    if year in district_data.keys():
+        if geo_key not in district_data[year].keys():
+            district_data[year][geo_key] = {}
+    
+    if geo_key is not 'district':    
+        for geoid, census_data in census_data_in_district[year][geo_key].iteritems():
             pid_total = 0.0
-            if geoid not in data_in_district.keys():
-                data_in_district[geoid] = {}
+            if geoid not in district_data[year][geo_key].keys():
+                district_data[year][geo_key][geoid] = {}
 
             # PID Total and classes
             for pid_class, pid_census_classes in pid_classes.iteritems():
@@ -316,9 +391,9 @@ def make_pid_and_class_data(
                     # Add up the total PID by Category, e.g., Age
                     pid_total = pid_total + pid_class_value
                 # PID Class
-                data_in_district[geoid][pid_class] = int(pid_class_total)
+                district_data[year][geo_key][geoid][pid_class] = int(pid_class_total)
             # PID Total
-            data_in_district[geoid][pid_total_field] = int(pid_total)
+            district_data[year][geo_key][geoid][pid_total_field] = int(pid_total)
             
             # Census classes
             for census_class, census_class_row in census_classes.iteritems():
@@ -330,19 +405,44 @@ def make_pid_and_class_data(
                     census_class_total =  census_class_total + census_subclass_value
 
                 # Census Class
-                data_in_district[geoid][census_class] = census_class_total
+                district_data[year][geo_key][geoid][census_class] = census_class_total
+    # geokey is 'district'
+    else:
+        pid_total = 0.0
+        # PID Total and classes
+        for pid_class, pid_census_classes in pid_classes.iteritems():
+            pid_class_total = 0.0
+            for pid_census_field in pid_census_classes['fields']:
+                # Add up the total PID for this class, e.g., Younger Millennial (18-25) 
+                pid_class_value = float(census_data_in_district[year][geo_key][pid_census_field]) * float(pid_census_classes['pid'])
+                pid_class_total =  pid_class_total + pid_class_value
 
-    return data_in_district
+                # Add up the total PID by Category, e.g., Age
+                pid_total = pid_total + pid_class_value
+            # PID Class
+            district_data[year][geo_key][pid_class] = int(pid_class_total)
+        # PID Total
+        district_data[year][geo_key][pid_total_field] = int(pid_total)
+        
+        # Census classes
+        for census_class, census_class_row in census_classes.iteritems():
+            # Add up the total of this census_class, e.g., (18-29) or 30s
+            census_class_total = 0
+
+            for census_subclass in census_class_row['fields']:
+                census_subclass_value = int(census_data_in_district[year][geo_key][census_subclass])
+                census_class_total =  census_class_total + census_subclass_value
+
+            # Census Class
+            district_data[year][geo_key][census_class] = census_class_total
+
+    return district_data
 
 
-def get_census_data(
-        api, 
-        category, 
-        fields, 
+def get_census_data(api, category, fields,
+        district_config_file = 'static/data/district.json',
         census_data_file='static/data/district-census-data.json', 
-        state=48, 
-        district=7, 
-        year=2015):
+        state=48, district=7, year='2015'):
     """Store the raw census data in a json file and return the census data
     Args:
         
@@ -351,25 +451,37 @@ def get_census_data(
     Raises:
         Nothing (yet)
     """
-   
     # TODO document
+    if os.path.isfile(district_config_file):
+        with open(district_config_file) as district_json:
+            district_config = json.load(district_json)
 
-    if os.path.isfile(census_data_file):
-        with open(census_data_file) as census_json:
-            census_data = json.load(census_json)
-            
-            census_data_is_for_my_district = (census_data['District']['state'] == state) and ( 
-                    census_data['District']['district'] == district)
+            if os.path.isfile(census_data_file):
+                with open(census_data_file) as census_json:
+                    census_data = json.load(census_json)
 
-            census_data_has_my_category = category in census_data['District'].keys()
+            census_data_is_for_my_district = (district_config['state'] == state) and ( 
+                    district_config['district'] == district)
+
+            census_data_is_for_my_year = year in district_config
             
             # if everything is there, load from file
-            if census_data_is_for_my_district and census_data_has_my_category:
-                census_data_is_for_my_year = year in census_data['District'][category]
-                if census_data_is_for_my_year:
+            if census_data_is_for_my_district and census_data_is_for_my_year:
+                census_data_has_my_category = category in district_config[year]
+                if census_data_has_my_category:
                     return census_data
             # if not, get data via census api and save to file
+            # get the data for the blockgroups in the district
             census_data = get_blockgroup_census_data(
+                    api=api, 
+                    census_data=census_data,
+                    fields=fields, 
+                    state=state, 
+                    district=district, 
+                    year=year
+                )
+            # get the data for the entire district
+            census_data = get_district_census_data(
                     api=api, 
                     census_data=census_data,
                     fields=fields, 
@@ -379,37 +491,50 @@ def get_census_data(
                 )
             # TODO add get_tract_census_data()
 
-            if category not in census_data['District'].keys():
-                census_data['District'][category] = [year]
+            if year not in district_config.keys():
+                district_config[year] = [category]
+                district_config['years'].append(year)
             else:
-                census_data['District'][category].append(year)
+                district_config[year].append(category)
             # save census data to file
             to_json(census_data, census_data_file)
+            to_json(district_config, district_config_file)
             
             return census_data
+
+    # if there is no previous data for this district, then build from scratch
+    census_data = get_blockgroup_census_data(
+            api=api, 
+            fields=fields, 
+            state=state, 
+            district=district, 
+            year=year)
     
-    census_data = get_blockgroup_census_data(api=api, 
-            fields=fields, state=state, district=district, year=year)
+    census_data = get_district_census_data(
+            api=api, 
+            census_data=census_data,
+            fields=fields, 
+            state=state, 
+            district=district, 
+            year=year
+        )
+
     # TODO add get_tract_census_data()
-    census_data['District'] = {}
-    census_data['District']['state'] = state
-    census_data['District']['district'] = district
-    census_data['District'][category] = [year]
+    district_config = {}
+    district_config['state'] = state
+    district_config['district'] = district
+    district_config[year] = [category]
+    district_config['years'] = [year]
     
     # save census data to file
     to_json(census_data, census_data_file)
+    to_json(district_config, district_config_file)
     
     return census_data
 
 
-def make_age_data(
-        api, 
-        data_in_district = {}, 
-        categories = {'Age': {} }, 
-        state=48, 
-        district=7, 
-        year=2015, 
-        make_voting_precinct=False):
+def make_age_data(api, district_data = {}, categories = {'Age': {} },
+        state=48, district=7, year='2015', make_voting_precinct=False):
     """Make the age Party Identification (PID) data and census data for a district
     Args: 
         api: 
@@ -447,7 +572,8 @@ def make_age_data(
     See http://www.people-press.org/2016/09/13/2016-party-identification-detailed-tables/
 
     """
-    
+    category='Age'
+    district_key='district'
     total_census_field = 'B01001_001E'
     age_table = 'B01001'
     
@@ -469,8 +595,9 @@ def make_age_data(
     
     # Load the census data
     print "Getting Census Data for Sex by Age"
-    census_fields, census_labels = get_census_fields_by_table(age_table)
-    census_data = get_census_data(api=api, category='age', fields=census_fields, 
+    census_fields, census_labels = get_census_fields_by_table(table=age_table, 
+            year=year)
+    census_data = get_census_data(api=api, category=category, fields=census_fields, 
         state=state, district=district, year=year)
     
     # create fields and labels for Party Identification classes
@@ -491,7 +618,7 @@ def make_age_data(
         fields.append(age_field)
         labels[age_field] = age_row['label']
     
-    categories['Age']['PID'] = {'fields': fields, 'labels': labels}
+    categories[category]['PID'] = {'fields': fields, 'labels': labels}
     
     # create fields and labels for census classes
     # used in web-based dashboard
@@ -508,43 +635,64 @@ def make_age_data(
         fields.append(age_field)
         labels[age_field] = age_row['label']
     
-    categories['Age']['Census'] = {'fields': fields, 'labels': labels}
+    categories[category]['Census'] = {'fields': fields, 'labels': labels}
 
     print "\nCalculating PID by Age"
    
     # make the party identification data and data for the census classes
-    data_in_district = make_pid_and_class_data( 
+    # for the blockgroups
+    district_data = make_pid_and_class_data( 
             census_data_in_district=census_data, 
             pid_classes=age_pid_classes,
             census_classes=age_classes,
-            pid_total_field=pid_total_field
+            pid_total_field=pid_total_field,
+            district_data=district_data,
+            year=year
+        )
+    
+    # make the party identification data and data for the census classes
+    # for the district
+    district_data = make_pid_and_class_data( 
+            census_data_in_district=census_data, 
+            pid_classes=age_pid_classes,
+            census_classes=age_classes,
+            pid_total_field=pid_total_field,
+            district_data=district_data,
+            year=year,
+            geo_key=district_key
         )
 
     # Calculate persons 18 and over in each block group and 
     # get the total population in each block group
-    for geoid, census_data_row in census_data.iteritems():
-        if not geoid in 'District':
-            # Persons 18 and over
-            under_18 = 0
-            for census_field in under_18_classes['fields']:
-                under_18 = under_18 + int(census_data_row[census_field])
-            # (over 18) = total - (under 18)
-            over_18 = int(census_data_row[total_census_field]) - under_18
-            data_in_district[geoid][over_18_field] = over_18
-                
-            # Total Population
-            data_in_district[geoid][total_field] = census_data_row[total_census_field]
+    geo_key = 'bg'
+    for geoid, census_data_row in census_data[year][geo_key].iteritems():
+        # Persons 18 and over
+        under_18 = 0
+        for census_field in under_18_classes['fields']:
+            under_18 = under_18 + int(census_data_row[census_field])
+        # (over 18) = total - (under 18)
+        over_18 = int(census_data_row[total_census_field]) - under_18
+        district_data[year][geo_key][geoid][over_18_field] = over_18
+            
+        # Total Population
+        district_data[year][geo_key][geoid][total_field] = census_data_row[total_census_field]
+    
+    # calculate the district stats
+    geo_key = district_key
+    for census_field in under_18_classes['fields']:
+        under_18 = under_18 + int(census_data[year][geo_key][census_field])
+    # (over 18) = total - (under 18)
+    over_18 = int(census_data[year][geo_key][total_census_field]) - under_18
+    district_data[year][geo_key][over_18_field] = over_18
+        
+    # Total Population
+    district_data[year][geo_key][total_field] = census_data[year][geo_key][total_census_field]
 
-    return categories, data_in_district
+    return categories, district_data
 
 
-def make_income_data(
-        api, 
-        data_in_district = {}, 
-        categories = {'Income': { }}, 
-        state=48, 
-        district=7, 
-        year=2015, 
+def make_income_data(api, district_data = {}, categories = {'Income': { }}, 
+        state=48, district=7, year='2015', 
         make_voting_precinct=False):
     """Make the income data for a district
     Args: 
@@ -555,7 +703,7 @@ def make_income_data(
         make_voting_precinct: dtype(bool)
     Returns: 
         categories:
-        data_in_district:
+        district_data:
     Raises:
         Nothing (yet)
 
@@ -581,6 +729,8 @@ def make_income_data(
     See http://www.people-press.org/2016/09/13/2016-party-identification-detailed-tables/
 
     """
+    category='Income'
+    district_key='district'
     income_table = 'B19001'
     total_household_inc_field = 'B19001_001E'
     median_household_inc_field = 'B19013_001E'
@@ -606,9 +756,10 @@ def make_income_data(
 
     # Load the census data
     print "Getting Census Data for Household Income"
-    census_fields, census_labels = get_census_fields_by_table(income_table)
+    census_fields, census_labels = get_census_fields_by_table(table=income_table, 
+            year=year)
     census_fields.append(median_household_inc_field)
-    census_data = get_census_data(api=api, category='income', fields=census_fields,
+    census_data = get_census_data(api=api, category=category, fields=census_fields,
         state=state, district=district, year=year)
 
     # create fields and labels for Party Identification classes
@@ -626,10 +777,10 @@ def make_income_data(
         fields.append(income_field)
         labels[income_field] = income_row['label']
     
-    if 'Income' not in categories.keys():
-        categories['Income'] = {}
+    if category not in categories.keys():
+        categories[category] = {}
 
-    categories['Income']['PID'] = {'fields': fields, 'labels': labels}
+    categories[category]['PID'] = {'fields': fields, 'labels': labels}
     
     # create fields and labels for census classes
     # used in web-based dashboard
@@ -652,7 +803,7 @@ def make_income_data(
     fields.append(median_field)
     labels[median_field] = median_label
     
-    categories['Income']['Census'] = {'fields': fields, 'labels': labels}
+    categories[category]['Census'] = {'fields': fields, 'labels': labels}
     
     # add over/under fields
     # this is to customize their position in the drop down menu
@@ -662,30 +813,51 @@ def make_income_data(
     print "\nCalculating PID by Income"
    
     # make the party identification data and census data
-    data_in_district = make_pid_and_class_data(
+    district_data = make_pid_and_class_data(
             census_data_in_district=census_data, 
             pid_classes=income_pid_classes,
             census_classes=income_classes,
             pid_total_field=pid_total_field,
-            data_in_district=data_in_district 
+            district_data=district_data,
+            year=year
             # TODO
             # add a list of singles (eg, total or median) to retrieve
         )
 
+    # make the party identification data and data for the census classes
+    # for the district
+    district_data = make_pid_and_class_data( 
+            census_data_in_district=census_data, 
+            pid_classes=income_pid_classes,
+            census_classes=income_classes,
+            pid_total_field=pid_total_field,
+            district_data=district_data,
+            year=year,
+            geo_key=district_key
+        )
+
     # get the total households and the median household income
-    for geoid, census_data_row in census_data.iteritems():
-        if not geoid in 'District':
-            # Median Household Income
-            data_in_district[geoid][median_field] = census_data_row[median_household_inc_field]
-                
-            # Total Households
-            data_in_district[geoid][total_field] = census_data_row[total_household_inc_field]
+    geo_key = 'bg'
+    for geoid, census_data_row in census_data[year][geo_key].iteritems():
+        # Median Household Income
+        district_data[year][geo_key][geoid][median_field] = census_data_row[median_household_inc_field]
+            
+        # Total Households
+        district_data[year][geo_key][geoid][total_field] = census_data_row[total_household_inc_field]
     
-    return categories, data_in_district
+    # calculate the district stats
+    geo_key = district_key
+    # Median Household Income
+    district_data[year][geo_key][median_field] = census_data[year][geo_key][median_household_inc_field]
+        
+    # Total Households
+    district_data[year][geo_key][total_field] = census_data[year][geo_key][total_household_inc_field]
+
+    return categories, district_data
     
 
-def make_race_data( api,  data_in_district = {}, categories = {'Race': { }}, 
-        state=48, district=7, year=2015, make_voting_precinct=False):
+def make_race_data( api,  district_data = {}, categories = {'Race': { }}, 
+        state=48, district=7, year='2015', make_voting_precinct=False):
     """Make the race data for a district
     Args: 
         api: 
@@ -695,14 +867,14 @@ def make_race_data( api,  data_in_district = {}, categories = {'Race': { }},
         make_voting_precinct: dtype(bool)
     Returns: 
         categories:
-        data_in_district:
+        district_data:
     Raises:
         Nothing (yet)
 
     PID by Race:
                                 R       D       I       O       LR      LD      NL      UN*
                                 %	%	%	%	%	%	%	
-      White, non-Hispanic	36	26	35	3	54	39	7	5,895
+    White, non-Hispanic	        36	26	35	3	54	39	7	5,895
     Black, non-Hispanic	        3	70	23	4	7	87	6	782
     Hispanic	                16	47	32	5	27	63	10	810
     Asian, non-Hispanic         18	44	32	6	27	66	7	164
@@ -720,6 +892,8 @@ def make_race_data( api,  data_in_district = {}, categories = {'Race': { }},
     See http://www.people-press.org/2016/09/13/2016-party-identification-detailed-tables/
 
     """
+    category='Race'
+    district_key='district'
     race_table = 'B02001'
     hispanic_table = 'B03003'
     race_total_field = 'B02001_001E'
@@ -736,13 +910,15 @@ def make_race_data( api,  data_in_district = {}, categories = {'Race': { }},
     # Load the census data
     census_fields = []
     print "Getting Census Data for Race"
-    race_fields, census_labels = get_census_fields_by_table(race_table)
+    race_fields, census_labels = get_census_fields_by_table(table=race_table, 
+            year=year)
     census_fields.extend(race_fields)
     
-    hispanic_fields, census_labels = get_census_fields_by_table(hispanic_table)
+    hispanic_fields, census_labels = get_census_fields_by_table(table=hispanic_table, 
+            year=year)
     census_fields.extend(hispanic_fields)
 
-    census_data = get_census_data(api=api, category='race', fields=census_fields,
+    census_data = get_census_data(api=api, category=category, fields=census_fields,
         state=state, district=district, year=year)
 
     # create fields and labels for Party Identification classes
@@ -760,10 +936,10 @@ def make_race_data( api,  data_in_district = {}, categories = {'Race': { }},
         fields.append(race_field)
         labels[race_field] = race_row['label']
     
-    if 'Race' not in categories.keys():
-        categories['Race'] = {}
+    if category not in categories.keys():
+        categories[category] = {}
 
-    categories['Race']['PID'] = {'fields': fields, 'labels': labels}
+    categories[category]['PID'] = {'fields': fields, 'labels': labels}
     
     # create fields and labels for census classes
     # used in web-based dashboard
@@ -777,32 +953,48 @@ def make_race_data( api,  data_in_district = {}, categories = {'Race': { }},
         fields.append(race_field)
         labels[race_field] = race_row['label']
     
-    categories['Race']['Census'] = {'fields': fields, 'labels': labels}
+    categories[category]['Census'] = {'fields': fields, 'labels': labels}
     
     print "\nCalculating PID by Race"
    
     # make the party identification data and census data
-    data_in_district = make_pid_and_class_data(
+    district_data = make_pid_and_class_data(
             census_data_in_district=census_data, 
             pid_classes=race_pid_classes,
             census_classes=race_classes,
             pid_total_field=pid_total_field,
-            data_in_district=data_in_district 
+            district_data=district_data,
+            year=year
             # TODO
             # add a list of singles (eg, total or median) to retrieve
         )
+    
+    # make the party identification data and data for the census classes
+    # for the district
+    district_data = make_pid_and_class_data( 
+            census_data_in_district=census_data, 
+            pid_classes=race_pid_classes,
+            census_classes=race_classes,
+            pid_total_field=pid_total_field,
+            district_data=district_data,
+            year=year,
+            geo_key=district_key
+        )
 
     # get the total population from the race table
-    for geoid, census_data_row in census_data.iteritems():
-        if not geoid in 'District':
-            # Total Households
-            data_in_district[geoid][total_field] = census_data_row[race_total_field]
+    geo_key='bg'
+    for geoid, census_data_row in census_data[year][geo_key].iteritems():
+        # 
+        district_data[year][geo_key][geoid][total_field] = census_data_row[race_total_field]
     
-    return categories, data_in_district
+    geo_key=district_key
+    district_data[year][geo_key][total_field] = census_data[year][geo_key][race_total_field]
+
+    return categories, district_data
 
 
-def make_edu_data( api,  data_in_district = {}, categories = {'Education': { }}, 
-        state=48, district=7, year=2015, make_voting_precinct=False):
+def make_edu_data( api,  district_data = {}, categories = {'Education': { }}, 
+        state=48, district=7, year='2015', make_voting_precinct=False):
     """Make the education data for a district
     Args: 
         api: 
@@ -812,7 +1004,7 @@ def make_edu_data( api,  data_in_district = {}, categories = {'Education': { }},
         make_voting_precinct: dtype(bool)
     Returns: 
         categories:
-        data_in_district:
+        district_data:
     Raises:
         Nothing (yet)
 
@@ -839,6 +1031,8 @@ def make_edu_data( api,  data_in_district = {}, categories = {'Education': { }},
     See http://www.people-press.org/2016/09/13/2016-party-identification-detailed-tables/
 
     """
+    category='Education'
+    district_key='district'
     edu_table = 'B15002'
     edu_total_field = 'B15002_001E'
     
@@ -854,10 +1048,11 @@ def make_edu_data( api,  data_in_district = {}, categories = {'Education': { }},
     # Load the census data
     census_fields = []
     print "Getting Census Data for Education"
-    edu_fields, census_labels = get_census_fields_by_table(edu_table)
+    edu_fields, census_labels = get_census_fields_by_table(table=edu_table, 
+            year=year)
     census_fields.extend(edu_fields)
     
-    census_data = get_census_data(api=api, category='edu', fields=census_fields,
+    census_data = get_census_data(api=api, category=category, fields=census_fields,
         state=state, district=district, year=year)
 
     # create fields and labels for Party Identification classes
@@ -875,10 +1070,10 @@ def make_edu_data( api,  data_in_district = {}, categories = {'Education': { }},
         fields.append(field)
         labels[field] = row['label']
     
-    if 'Education' not in categories.keys():
-        categories['Education'] = {}
+    if category not in categories.keys():
+        categories[category] = {}
 
-    categories['Education']['PID'] = {'fields': fields, 'labels': labels}
+    categories[category]['PID'] = {'fields': fields, 'labels': labels}
     
     # create fields and labels for census classes
     # used in web-based dashboard
@@ -892,28 +1087,44 @@ def make_edu_data( api,  data_in_district = {}, categories = {'Education': { }},
         fields.append(field)
         labels[field] = row['label']
     
-    categories['Education']['Census'] = {'fields': fields, 'labels': labels}
+    categories[category]['Census'] = {'fields': fields, 'labels': labels}
     
     print "\nCalculating PID by Educational Attainment"
    
     # make the party identification data and census data
-    data_in_district = make_pid_and_class_data(
+    district_data = make_pid_and_class_data(
             census_data_in_district=census_data, 
             pid_classes=edu_pid_classes,
             census_classes=edu_classes,
             pid_total_field=pid_total_field,
-            data_in_district=data_in_district 
+            district_data=district_data,
+            year=year
             # TODO
             # add a list of singles (eg, total or median) to retrieve
         )
 
+    # make the party identification data and data for the census classes
+    # for the district
+    district_data = make_pid_and_class_data( 
+            census_data_in_district=census_data, 
+            pid_classes=edu_pid_classes,
+            census_classes=edu_classes,
+            pid_total_field=pid_total_field,
+            district_data=district_data,
+            year=year,
+            geo_key=district_key
+        )
+
     # get the total population from the edu table
-    for geoid, census_data_row in census_data.iteritems():
-        if not geoid in 'District':
-            # Total Population
-            data_in_district[geoid][total_field] = census_data_row[edu_total_field]
+    geo_key='bg'
+    for geoid, census_data_row in census_data[year][geo_key].iteritems():
+        # Total Population
+        district_data[year][geo_key][geoid][total_field] = census_data_row[edu_total_field]
     
-    return categories, data_in_district
+    geo_key=district_key
+    district_data[year][geo_key][total_field] = census_data[year][geo_key][edu_total_field]
+
+    return categories, district_data
 
 
 def main():
@@ -924,31 +1135,39 @@ def main():
     census_api_key = settings_dict['census_api_key']
     # TODO
     # make it modular to state, district, and year
-    state = 48
-    district = 7
-    year = 2015
+    state = settings_dict['state']
+    district = settings_dict['district']
+    year = settings_dict['year']
     
+    district_data=load_district_data()
+
     # Make the age categories and data for the district file
-    categories, district_data = make_age_data(census_api_key)
+    categories, district_data = make_age_data(
+            api=census_api_key, 
+            district_data=district_data,
+            year=year)
     
     # Add income categories and data to the district file
     categories, district_data = make_income_data(
             api=census_api_key,
-            data_in_district=district_data,
-            categories=categories
+            district_data=district_data,
+            categories=categories,
+            year=year
         )
     
     # Add race categories and data to the district file
     categories, district_data = make_race_data(
             api=census_api_key,
-            data_in_district=district_data,
-            categories=categories
+            district_data=district_data,
+            categories=categories,
+            year=year
         )
     # Add educational categories and data to the district file
     categories, district_data = make_edu_data(
             api=census_api_key,
-            data_in_district=district_data,
-            categories=categories
+            district_data=district_data,
+            categories=categories,
+            year=year
         )
 
     to_json(district_data, "static/data/district-data.json")

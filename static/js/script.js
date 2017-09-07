@@ -20,19 +20,21 @@ var district_min = Number.MAX_VALUE;
 var district_max = -Number.MAX_VALUE;
 var chart_intervals = 100;
 var barchart_data;
+var district_chart_data;
+var field_graph_data;
 
 function loadGoogleMapsAPI() {
     var script = document.createElement('script');
     script.type = 'text/javascript';
     script.src = 'https://maps.googleapis.com/maps/api/js?v=3' +
         '&key=' + GOOGLE_API_KEY + 
-		'&callback=initMap';
+		'&callback=init_map';
     document.body.appendChild(script);
 }
 
 window.onload = loadGoogleMapsAPI;
  
-function initMap() {
+function init_map() {
 	/* TODO
 	 * get variable settings for a particular congressional district 
 	 */
@@ -89,9 +91,9 @@ function initMap() {
 		clear_data();
         load_data(select_box.options[select_box.selectedIndex].value);
         load_chart(select_box.options[select_box.selectedIndex].value);
-
     });
 	init_chart(select_box.options[select_box.selectedIndex].value);
+	init_district_chart(fields, labels, category, category_type);
 	load_maps();
 }
 
@@ -133,11 +135,10 @@ function load_category(category, category_type) {
 	var fields = categories[category][category_type]['fields'];
 	labels = categories[category][category_type]['labels'];
 	
-	console.log(labels);
-
 	set_select_box(fields, labels);
 	clear_data();
 	google.maps.event.trigger(document.getElementById('fields'), 'change');
+	load_district_chart(fields, labels, category, category_type);
 
 	return false;
 }
@@ -155,7 +156,7 @@ function load_data(selected_variable) {
 	
 	geounits_layer.forEach(function(feature){
 		var geoid = feature.getProperty('GEOID');
-		var data_value = parseInt(data[geoid.toString()][selected_variable]);
+		var data_value = parseInt(data['2015']['bg'][geoid.toString()][selected_variable]);
 		
 		// keep track of min and max values
 		if (data_value < district_min) {
@@ -250,14 +251,6 @@ function mouse_out_of_region(e) {
 
 function init_chart(selected_variable) {
 	var data = {};
-	$.ajax({
-  		url: '/static/data/district-data.json',
-  		async: false,
-  		dataType: 'json',
-  		success: function (json) {
-    		data = json;
-  		}
-	});
 	var barchart_values = new Array(chart_intervals).fill(0)
 	var barchart_labels = [];
 
@@ -305,7 +298,7 @@ function load_chart(selected_variable) {
 	}
 	geounits_layer.forEach(function(feature){
 		var geoid = feature.getProperty('GEOID');
-		var data_value = parseInt(data[geoid.toString()][selected_variable]);
+		var data_value = parseInt(data['2015']['bg'][geoid.toString()][selected_variable]);
 		var interval = Math.floor(
 			(chart_intervals - 1) *
 			((data_value - district_min) /
@@ -323,4 +316,74 @@ function load_chart(selected_variable) {
 				data: barchart_values,
 			}];
 	window.bar_chart.update();
+}
+
+function init_district_chart(fields, labels, category, category_type) {
+	var data = {};
+	var barchart_values = [];
+	var barchart_labels = [];
+
+	$.ajax({
+  		url: '/static/data/district-data.json',
+  		async: false,
+  		dataType: 'json',
+  		success: function (json) {
+    		data = json;
+  		}
+	});
+	for(var i = 0; i < fields.length; i++) {
+		barchart_labels[i] = labels[fields[i]];
+		barchart_values[i] = data['2015']['district'][fields[i]];
+	}
+	district_chart_data = {
+			labels: barchart_labels,
+			datasets: [{
+				label: category + ': ' + category_type,
+				backgroundColor: 'rgb(255, 99, 132)',
+				borderColor: 'rgb(255, 99, 132)',
+				data: barchart_values,
+			}]
+		};
+
+	var ctx = document.getElementById('district_chart').getContext('2d');
+	
+	window.district_chart = new Chart(ctx, {
+		// The type of chart we want to create
+		type: 'bar',
+
+		// The data for our dataset
+		data: district_chart_data,
+
+		// Configuration options go here
+		options: {}
+	});
+}
+
+function load_district_chart(fields, labels, category, category_type) {
+	var data = {};
+	$.ajax({
+  		url: '/static/data/district-data.json',
+  		async: false,
+  		dataType: 'json',
+  		success: function (json) {
+    		data = json;
+  		}
+	});
+	var barchart_values = [];
+	var barchart_labels = [];
+
+	for(var i = 0; i < fields.length; i++) {
+		barchart_labels[i] = labels[fields[i]];
+		barchart_values[i] = data['2015']['district'][fields[i]];
+	}
+	console.log(barchart_values);
+	console.log(barchart_labels);
+	district_chart_data.labels = barchart_labels;
+	district_chart_data.datasets = [{
+				label: category + ': ' + category_type,
+				backgroundColor: 'rgb(255, 99, 132)',
+				borderColor: 'rgb(255, 99, 132)',
+				data: barchart_values,
+			}];
+	window.district_chart.update();
 }
