@@ -10,36 +10,67 @@
  */
 
 // Global Variables
+
 var map;
 var categories;
+var category;
+var category_type;
+var geounit_type;
 var labels;
-var ranges = {};
+var fields;
 var district_layer;
 var geounits_layer;
 var district_min = Number.MAX_VALUE; 
 var district_max = -Number.MAX_VALUE;
 var chart_intervals = 100;
-var barchart_data;
+var hover_geounits = [];
+var distribution_chart_data;
+var distribution_geounits;
 var district_chart_data;
+var geounit_chart_data;
 var field_graph_data;
+var years;
+var color = Chart.helpers.color;
+var chartColors = {
+	red: 'rgb(255, 99, 132)',
+	green: 'rgb(75, 192, 192)',
+	blue: 'rgb(54, 162, 235)',
+	orange: 'rgb(255, 159, 64)',
+	purple: 'rgb(153, 102, 255)',
+	yellow: 'rgb(255, 205, 86)',
+	grey: 'rgb(201, 203, 207)'
+};
+var colorNames = Object.keys(chartColors);
 
 function loadGoogleMapsAPI() {
     var script = document.createElement('script');
     script.type = 'text/javascript';
     script.src = 'https://maps.googleapis.com/maps/api/js?v=3' +
         '&key=' + GOOGLE_API_KEY + 
-		'&callback=init_map';
+		'&callback=init';
+	script.setAttribute('defer','');
+	script.setAttribute('async','');
     document.body.appendChild(script);
 }
 
 window.onload = loadGoogleMapsAPI;
  
-function init_map() {
+function init() {
 	/* TODO
 	 * get variable settings for a particular congressional district 
 	 */
-	var category = 'Age';
-	var category_type = 'Census';
+	category = 'Age';
+	category_type = 'Census';
+	geounit_type = 'Block Group';
+	
+	$.ajax({
+  		url: '/static/data/district.json',
+  		async: false,
+  		dataType: 'json',
+  		success: function (json) {
+    		years = json['years'].sort();
+  		}
+	});
 
 	var uluru = {lat: 29.8, lng: -95.6};
     map = new google.maps.Map(document.getElementById('map'), {
@@ -49,11 +80,11 @@ function init_map() {
     });
 
 	// Create data layers for the Congressional District and
-	// the sub-geounits, e.g., voting precinct, tract, or block group
+	// the geounits, e.g., voting precinct, tract, or block group
 	district_layer = new google.maps.Data({map: map});
 	geounits_layer = new google.maps.Data({map: map});
 	
-	geounits_layer.loadGeoJson("/static/geojson/tx7-blockgroups.geojson");
+	
 	district_layer.loadGeoJson("/static/geojson/tx7.geojson");
 	
 	district_layer.setStyle({
@@ -67,6 +98,7 @@ function init_map() {
 	geounits_layer.setStyle(style_feature);
 	geounits_layer.addListener('mouseover', mouse_in_to_region);
     geounits_layer.addListener('mouseout', mouse_out_of_region);
+	geounits_layer.addListener('click', click_region);
 
 	// fill in the options for the variable selection
 	// get category fields
@@ -82,30 +114,40 @@ function init_map() {
 	var databox = document.getElementById('data-box');
     map.controls[google.maps.ControlPosition.RIGHT_TOP].push(databox);
 	
-	var fields = categories[category][category_type]['fields'];
+	fields = categories[category][category_type]['fields'];
 	labels = categories[category][category_type]['labels'];
 
-	set_select_box(fields, labels);
+	set_select_box();
 	var select_box = document.getElementById('fields');
+	var selected_variable = select_box.options[select_box.selectedIndex].value
 	google.maps.event.addDomListener(select_box, 'change', function() {
-		clear_data();
-        load_data(select_box.options[select_box.selectedIndex].value);
-        load_chart(select_box.options[select_box.selectedIndex].value);
+		clear_map_data();
+        load_map_data(select_box.options[select_box.selectedIndex].value);
+        load_distribution_chart(select_box.options[select_box.selectedIndex].value);
+		load_district_chart();
+		document.getElementById('geounit_chart').style.display = 'none';
     });
-	init_chart(select_box.options[select_box.selectedIndex].value);
-	init_district_chart(fields, labels, category, category_type);
+	
 	load_maps();
+	init_distribution_chart(selected_variable);
+	init_district_chart();
+	init_geounit_chart();
 }
 
 function load_maps() {
 	// wait for Google maps to finish loading and then do stuff
 	google.maps.event.addListenerOnce(map, 'idle', function() {
-		google.maps.event.trigger(document.getElementById('fields'), 'change');
-		
 		var controls = document.getElementById('controls');
     	map.controls[google.maps.ControlPosition.TOP_CENTER].push(controls);
 		controls.style.opacity = 1;
 	});
+	geounits_layer.loadGeoJson(
+		"/static/geojson/tx7-blockgroups.geojson", 
+		{ idPropertyName: 'GEOID' },
+		function (features) {
+			google.maps.event.trigger(document.getElementById('fields'), 'change');
+		}
+	);
 }
 
 // TODO change from embedded onclick to DOM populated onclicks
@@ -114,36 +156,34 @@ function set_nav_behavior(){
 	age_census.onclick = load_category('Age', 'Census');
 }
 
-function set_select_box(fields, my_labels) {
+function set_select_box() {
 	var select_box = document.getElementById('fields');
 	// clear any options
 	while (select_box.firstChild) {
     	select_box.removeChild(select_box.firstChild);
 	}
 	for (var i = 0; i < fields.length; i++) {
-	ranges[fields[i]] = { min: Infinity, max: -Infinity };
-		// Simultaneously, build the UI for selecting different
-		// ranges
 		$('<option></option>')
-			.text(my_labels[fields[i]])
+			.text(labels[fields[i]])
 			.attr('value', fields[i])
 			.appendTo(select_box);
 	}
 }
 
-function load_category(category, category_type) {
-	var fields = categories[category][category_type]['fields'];
+function load_category(c, c_type) {
+	category = c;
+	category_type = c_type;
+	fields = categories[category][category_type]['fields'];
 	labels = categories[category][category_type]['labels'];
 	
-	set_select_box(fields, labels);
-	clear_data();
+	set_select_box();
 	google.maps.event.trigger(document.getElementById('fields'), 'change');
-	load_district_chart(fields, labels, category, category_type);
 
 	return false;
 }
 
-function load_data(selected_variable) {
+function load_map_data(selected_variable) {
+	console.log('Loading map data');
 	var data = {};
 	$.ajax({
   		url: '/static/data/district-data.json',
@@ -157,6 +197,9 @@ function load_data(selected_variable) {
 	geounits_layer.forEach(function(feature){
 		var geoid = feature.getProperty('GEOID');
 		var data_value = parseInt(data['2015']['bg'][geoid.toString()][selected_variable]);
+		//TODO add debug flag
+		//console.log('GEOID:  ' + geoid.toString());
+		//console.log('Value:  ' + data_value.toString());
 		
 		// keep track of min and max values
 		if (data_value < district_min) {
@@ -180,7 +223,7 @@ function load_data(selected_variable) {
 }
 
 /** Removes census data from each shape on the map and resets the UI. */
-function clear_data() {
+function clear_map_data() {
 	district_min = Number.MAX_VALUE;
 	district_max = -Number.MAX_VALUE;
 	geounits_layer.forEach(function(row) {
@@ -210,16 +253,23 @@ function style_feature(feature) {
 			isNaN(feature.getProperty('data_value'))) {
 		show_row = false;
 	}
-
-	var outlineWeight = 0.5, zIndex = 1;
-	if (feature.getProperty('state') === 'hover') {
+	// default values
+	var outlineWeight = 0.5, 
+		zIndex = 1,
+		stroke_color = '#fff';
+	if (feature.getProperty('map_state') === 'hover') {
 		outlineWeight = 3;
 		zIndex = 2;
 	}
-
+	if (feature.getProperty('chart_state') === 'hover') {
+		outlineWeight = 3;
+		zIndex = 2;
+		stroke_color = '#000';
+	}
+	
 	return {
 	  	strokeWeight: outlineWeight,
-	  	strokeColor: '#fff',
+	  	strokeColor: stroke_color,
 	  	zIndex: zIndex,
 	  	fillColor: 'hsl(' + color[0] + ',' + color[1] + '%,' + color[2] + '%)',
 	  	fillOpacity: 0.75,
@@ -229,16 +279,16 @@ function style_feature(feature) {
 
 function mouse_in_to_region(e) {
 	// set the hover state so the setStyle function can change the border
-	e.feature.setProperty('state', 'hover');
+	e.feature.setProperty('map_state', 'hover');
 	var geoid = e.feature.getProperty('GEOID');
 	var data_value = e.feature.getProperty('data_value');
 	var data_label = e.feature.getProperty('label');
 	var percent = (data_value - district_min) / (district_max - district_min) * 100;
-
- 	console.log('GEOID: ' + geoid );
- 	console.log(data_label + ': ' + data_value);
-	document.getElementById('data-label').textContent = data_label
-    document.getElementById('data-value').textContent = data_value
+	// TODO debug flag
+ 	//console.log('GEOID: ' + geoid );
+ 	//console.log(data_label + ': ' + data_value);
+	document.getElementById('data-label').textContent = data_label;
+    document.getElementById('data-value').textContent = number_with_commas(data_value.toString());
     document.getElementById('data-box').style.display = 'block';
     document.getElementById('data-caret').style.display = 'block';
     document.getElementById('data-caret').style.paddingLeft = percent + '%';
@@ -246,15 +296,23 @@ function mouse_in_to_region(e) {
 
 function mouse_out_of_region(e) {
 	// reset the hover state, returning the border to normal
-	e.feature.setProperty('state', 'normal');
+	e.feature.setProperty('map_state', 'normal');
 }
 
-function init_chart(selected_variable) {
+
+function click_region(e) {
+	var geoid = e.feature.getProperty('GEOID');
+
+	load_geounit_chart(geoid);
+}
+
+
+function init_distribution_chart(selected_variable) {
 	var data = {};
 	var barchart_values = new Array(chart_intervals).fill(0)
 	var barchart_labels = [];
 
-	barchart_data = {
+	distribution_chart_data = {
 			labels: barchart_labels,
 			datasets: [{
 				label: labels[selected_variable],
@@ -264,21 +322,31 @@ function init_chart(selected_variable) {
 			}]
 		};
 
-	var ctx = document.getElementById('bar_chart').getContext('2d');
+	var title = "Districtwide Distribution for " + labels[selected_variable];
 	
+	var ctx = document.getElementById('distribution_chart').getContext('2d');
 	window.bar_chart = new Chart(ctx, {
 		// The type of chart we want to create
 		type: 'bar',
 
 		// The data for our dataset
-		data: barchart_data,
+		data: distribution_chart_data,
 
 		// Configuration options go here
-		options: {}
+		options: {
+			onHover: mouse_on_chart,
+			title: {
+				display: true,
+				text: title,
+				fontsize: 18
+			}
+		}
 	});
 }
 
-function load_chart(selected_variable) {
+
+function load_distribution_chart(selected_variable) {
+	console.log('Loading distribution chart');
 	var data = {};
 	$.ajax({
   		url: '/static/data/district-data.json',
@@ -290,12 +358,15 @@ function load_chart(selected_variable) {
 	});
 	var barchart_values = new Array(chart_intervals).fill(0)
 	var barchart_labels = [];
+	var title = "Districtwide Distribution for " + labels[selected_variable];
+	
 	for (var i = 0; i < barchart_values.length; i++) {
 		var interval = Math.floor(
 			((i + 1) * ((district_max - district_min) / chart_intervals)) + district_min
 		);
 		barchart_labels[i] = interval.toString();
 	}
+	distribution_geounits = new Array(chart_intervals).fill([])
 	geounits_layer.forEach(function(feature){
 		var geoid = feature.getProperty('GEOID');
 		var data_value = parseInt(data['2015']['bg'][geoid.toString()][selected_variable]);
@@ -305,20 +376,49 @@ function load_chart(selected_variable) {
 			(district_max - district_min))
 		);
 		barchart_values[interval] = barchart_values[interval] + 1;
+		var t = distribution_geounits[interval].concat();
+		t.push(geoid);
+		distribution_geounits[interval] = t.concat();
+		
 	});
 	console.log(barchart_values);
 	console.log(barchart_labels);
-	barchart_data.labels = barchart_labels;
-	barchart_data.datasets = [{
+	console.log(distribution_geounits);
+	distribution_chart_data.labels = barchart_labels;
+	distribution_chart_data.datasets = [{
 				label: labels[selected_variable],
 				backgroundColor: 'rgb(255, 99, 132)',
 				borderColor: 'rgb(255, 99, 132)',
 				data: barchart_values,
 			}];
+
+	// clear any highlighting
+	for(i=0; i < hover_geounits.length; i++) {
+		geounits_layer.getFeatureById(hover_geounits[i]).setProperty('chart_state', 'normal');
+	}
+
+	window.bar_chart.options.title.text = title;
 	window.bar_chart.update();
 }
 
-function init_district_chart(fields, labels, category, category_type) {
+
+function mouse_on_chart(e, a) {
+	if(a.length > 0){
+		// clear old data
+		for(i=0; i < hover_geounits.length; i++) {
+			geounits_layer.getFeatureById(hover_geounits[i]).setProperty('chart_state', 'normal');
+		}
+
+		var index = a[0]._index;
+		hover_geounits = distribution_geounits[index].concat();
+		for(i=0; i < hover_geounits.length; i++) {
+			geounits_layer.getFeatureById(hover_geounits[i]).setProperty('chart_state', 'hover');
+		}
+	}
+}
+
+
+function init_district_chart() {
 	var data = {};
 	var barchart_values = [];
 	var barchart_labels = [];
@@ -333,20 +433,32 @@ function init_district_chart(fields, labels, category, category_type) {
 	});
 	for(var i = 0; i < fields.length; i++) {
 		barchart_labels[i] = labels[fields[i]];
-		barchart_values[i] = data['2015']['district'][fields[i]];
 	}
 	district_chart_data = {
 			labels: barchart_labels,
-			datasets: [{
-				label: category + ': ' + category_type,
-				backgroundColor: 'rgb(255, 99, 132)',
-				borderColor: 'rgb(255, 99, 132)',
-				data: barchart_values,
-			}]
+			datasets: []
 		};
-
+	
+	for(var j = 0; j < years.length; j++) {
+		barchart_values = [];
+		for(var i = 0; i < fields.length; i++) {
+			barchart_values[i] = data[years[j]]['district'][fields[i]];
+		}
+		console.log(barchart_values);
+		var colorName = colorNames[district_chart_data.datasets.length % colorNames.length];
+		var dsColor = chartColors[colorName];
+		district_chart_data.datasets.push({
+				label: years[j],
+				backgroundColor: color(dsColor).alpha(0.5).rgbString(),
+				borderColor: dsColor,
+				borderWidth: 1,
+				data: barchart_values,
+			});
+	}
+	
 	var ctx = document.getElementById('district_chart').getContext('2d');
 	
+	var title = category + " for District";
 	window.district_chart = new Chart(ctx, {
 		// The type of chart we want to create
 		type: 'bar',
@@ -355,11 +467,18 @@ function init_district_chart(fields, labels, category, category_type) {
 		data: district_chart_data,
 
 		// Configuration options go here
-		options: {}
+		options: {
+			title: {
+				display: true,
+				text: title,
+				fontsize: 18
+			}
+		}
 	});
 }
 
-function load_district_chart(fields, labels, category, category_type) {
+function load_district_chart() {
+	console.log('Loading district chart');
 	var data = {};
 	$.ajax({
   		url: '/static/data/district-data.json',
@@ -369,21 +488,128 @@ function load_district_chart(fields, labels, category, category_type) {
     		data = json;
   		}
 	});
+
 	var barchart_values = [];
 	var barchart_labels = [];
+	
+	district_chart_data.datasets.splice(0, district_chart_data.datasets.length);
 
+	for(var j = 0; j < years.length; j++) {
+		barchart_values = [];
+		for(var i = 0; i < fields.length; i++) {
+			barchart_values[i] = data[years[j]]['district'][fields[i]];
+		}
+		console.log(barchart_values);
+		var colorName = colorNames[district_chart_data.datasets.length % colorNames.length];
+		var dsColor = chartColors[colorName];
+		district_chart_data.datasets.push({
+				label: years[j],
+				backgroundColor: color(dsColor).alpha(0.5).rgbString(),
+				borderColor: dsColor,
+				borderWidth: 1,
+				data: barchart_values,
+			});
+	}
 	for(var i = 0; i < fields.length; i++) {
 		barchart_labels[i] = labels[fields[i]];
-		barchart_values[i] = data['2015']['district'][fields[i]];
 	}
-	console.log(barchart_values);
-	console.log(barchart_labels);
+
 	district_chart_data.labels = barchart_labels;
-	district_chart_data.datasets = [{
-				label: category + ': ' + category_type,
+	
+	var title = category + " for District";
+	window.district_chart.options.title.text = title;
+	
+	window.district_chart.update();
+}
+
+function init_geounit_chart() {
+	var data = {};
+	var barchart_values = [];
+	var barchart_labels = [];
+	
+	for(var i = 0; i < fields.length; i++) {
+		barchart_labels[i] = labels[fields[i]];
+	}
+	geounit_chart_data = {
+			labels: barchart_labels,
+			datasets: [{
+				label: '',
 				backgroundColor: 'rgb(255, 99, 132)',
 				borderColor: 'rgb(255, 99, 132)',
 				data: barchart_values,
-			}];
-	window.district_chart.update();
+			}]
+		};
+
+	var title = '';
+	var ctx = document.getElementById('geounit_chart').getContext('2d');
+	
+	window.geounit_chart = new Chart(ctx, {
+		// The type of chart we want to create
+		type: 'bar',
+
+		// The data for our dataset
+		data: geounit_chart_data,
+
+		// Configuration options go here
+		options: {
+			title: {
+				display: true,
+				text: title,
+				fontsize: 18
+			}
+		}
+	});
+	document.getElementById('geounit_chart').style.display = 'none';
+}
+
+function load_geounit_chart(geoid) {
+	console.log('Loading geounit chart');
+	var data = {};
+	$.ajax({
+  		url: '/static/data/district-data.json',
+  		async: false,
+  		dataType: 'json',
+  		success: function (json) {
+    		data = json;
+  		}
+	});
+
+	var barchart_values = [];
+	var barchart_labels = [];
+	var title = category + " for " + geounit_type + " " + geoid.toString();
+
+	geounit_chart_data.datasets.splice(0, geounit_chart_data.datasets.length);
+
+	for(var j = 0; j < years.length; j++) {
+		barchart_values = [];
+		for(var i = 0; i < fields.length; i++) {
+			barchart_values[i] = data[years[j]]['bg'][geoid][fields[i]];
+		}
+		console.log(barchart_values);
+		var colorName = colorNames[geounit_chart_data.datasets.length % colorNames.length];
+		var dsColor = chartColors[colorName];
+		geounit_chart_data.datasets.push({
+				label: years[j],
+				backgroundColor: color(dsColor).alpha(0.5).rgbString(),
+				borderColor: dsColor,
+				borderWidth: 1,
+				data: barchart_values,
+			});
+	}
+	for(var i = 0; i < fields.length; i++) {
+		barchart_labels[i] = labels[fields[i]];
+	}
+
+	console.log(years);
+	console.log(barchart_labels);
+	geounit_chart_data.labels = barchart_labels;
+	
+	window.geounit_chart.options.title.text = title;
+
+	window.geounit_chart.update();
+	document.getElementById('geounit_chart').style.display = 'block';
+}
+
+function number_with_commas(x) {
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
