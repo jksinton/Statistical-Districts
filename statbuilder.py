@@ -144,17 +144,15 @@ def extract_all(fn,dst="."):
     else:
         print "Please provide a tar archive file or zip file"
 
-
 # TODO
 # def find_tracts_in_district(state='48', district='07'):
 
 
 def find_blockgroups_in_district(state=48, district=7, year='2015'):
-    """Find the geographical units that intersect with a Congressional District.
+    """Find the blockgroups that intersect with a Congressional District.
     Args:
         state: The state where the Congressional district is in
         district: Congressional district
-        plot: Boolean
     Returns:
         Nothing
     Raises:
@@ -205,6 +203,7 @@ def find_blockgroups_in_district(state=48, district=7, year='2015'):
         pass
     bgs_in_district.to_file(bgs_outputGeoJSON, driver='GeoJSON')
 
+    # TODO save as json
     # Create csv file of geo units
     bgs_in_district[['BLKGRPCE','COUNTYFP', 'STATEFP', 'TRACTCE', 'GEOID']].to_csv('static/data/' + bgs_output +'.csv')
 
@@ -257,6 +256,7 @@ def get_blockgroup_census_data(api, fields, census_data = {}, state=48, district
         i = i + 1
 
     return census_data
+
 
 def get_district_census_data(api, fields, census_data = {}, state=48, district=7, year='2015'):
     """Retrieve the census data for the block groups in a Congressional District
@@ -534,7 +534,7 @@ def get_census_data(api, category, fields,
 
 
 def make_age_data(api, district_data = {}, categories = {'Age': {} },
-        state=48, district=7, year='2015', make_voting_precinct=False):
+        state=48, district=7, year='2015'):
     """Make the age Party Identification (PID) data and census data for a district
     Args: 
         api: 
@@ -542,7 +542,6 @@ def make_age_data(api, district_data = {}, categories = {'Age': {} },
         district: 
         year: 
         data_file:
-        make_voting_precinct: dtype(bool)
     Returns: 
         categories:
     Raises:
@@ -573,7 +572,12 @@ def make_age_data(api, district_data = {}, categories = {'Age': {} },
 
     """
     category='Age'
+    
     district_key='district'
+    blockgroup_key='bg'
+    precinct_key='precinct'
+    tract_key='tract'
+
     total_census_field = 'B01001_001E'
     age_table = 'B01001'
     
@@ -664,7 +668,7 @@ def make_age_data(api, district_data = {}, categories = {'Age': {} },
 
     # Calculate persons 18 and over in each block group and 
     # get the total population in each block group
-    geo_key = 'bg'
+    geo_key = blockgroup_key
     for geoid, census_data_row in census_data[year][geo_key].iteritems():
         # Persons 18 and over
         under_18 = 0
@@ -692,8 +696,7 @@ def make_age_data(api, district_data = {}, categories = {'Age': {} },
 
 
 def make_income_data(api, district_data = {}, categories = {'Income': { }}, 
-        state=48, district=7, year='2015', 
-        make_voting_precinct=False):
+        state=48, district=7, year='2015'):
     """Make the income data for a district
     Args: 
         api: 
@@ -730,7 +733,12 @@ def make_income_data(api, district_data = {}, categories = {'Income': { }},
 
     """
     category='Income'
+
     district_key='district'
+    blockgroup_key='bg'
+    precinct_key='precinct'
+    tract_key='tract'
+
     income_table = 'B19001'
     total_household_inc_field = 'B19001_001E'
     median_household_inc_field = 'B19013_001E'
@@ -837,7 +845,7 @@ def make_income_data(api, district_data = {}, categories = {'Income': { }},
         )
 
     # get the total households and the median household income
-    geo_key = 'bg'
+    geo_key = blockgroup_key
     for geoid, census_data_row in census_data[year][geo_key].iteritems():
         # Median Household Income
         district_data[year][geo_key][geoid][median_field] = census_data_row[median_household_inc_field]
@@ -857,7 +865,7 @@ def make_income_data(api, district_data = {}, categories = {'Income': { }},
     
 
 def make_race_data( api,  district_data = {}, categories = {'Race': { }}, 
-        state=48, district=7, year='2015', make_voting_precinct=False):
+        state=48, district=7, year='2015' ):
     """Make the race data for a district
     Args: 
         api: 
@@ -893,7 +901,12 @@ def make_race_data( api,  district_data = {}, categories = {'Race': { }},
 
     """
     category='Race'
+
     district_key='district'
+    blockgroup_key='bg'
+    precinct_key='precinct'
+    tract_key='tract'
+
     race_table = 'B02001'
     hispanic_table = 'B03003'
     race_total_field = 'B02001_001E'
@@ -982,7 +995,7 @@ def make_race_data( api,  district_data = {}, categories = {'Race': { }},
         )
 
     # get the total population from the race table
-    geo_key='bg'
+    geo_key=blockgroup_key
     for geoid, census_data_row in census_data[year][geo_key].iteritems():
         # 
         district_data[year][geo_key][geoid][total_field] = census_data_row[race_total_field]
@@ -994,7 +1007,7 @@ def make_race_data( api,  district_data = {}, categories = {'Race': { }},
 
 
 def make_edu_data( api,  district_data = {}, categories = {'Education': { }}, 
-        state=48, district=7, year='2015', make_voting_precinct=False):
+        state=48, district=7, year='2015' ):
     """Make the education data for a district
     Args: 
         api: 
@@ -1032,7 +1045,12 @@ def make_edu_data( api,  district_data = {}, categories = {'Education': { }},
 
     """
     category='Education'
+
     district_key='district'
+    blockgroup_key='bg'
+    precinct_key='precinct'
+    tract_key='tract'
+
     edu_table = 'B15002'
     edu_total_field = 'B15002_001E'
     
@@ -1116,7 +1134,7 @@ def make_edu_data( api,  district_data = {}, categories = {'Education': { }},
         )
 
     # get the total population from the edu table
-    geo_key='bg'
+    geo_key=blockgroup_key
     for geoid, census_data_row in census_data[year][geo_key].iteritems():
         # Total Population
         district_data[year][geo_key][geoid][total_field] = census_data_row[edu_total_field]
@@ -1127,6 +1145,55 @@ def make_edu_data( api,  district_data = {}, categories = {'Education': { }},
     return categories, district_data
 
 
+def make_voting_precinct_data(categories, district_data = {}, year='2015',
+        blockgroups_file='static/geojson/tx7-blockgroups.geojson', 
+        voting_precincts_file='static/geojson/tx7-precincts.geojson'):
+    """
+    Args: 
+        district_data:
+        blockgroups:
+        voting_precincts:
+    Returns: 
+        categories:
+        district_data:
+    Raises:
+        Nothing (yet)
+    """
+    precinct_key = 'precinct'
+    
+    print "Calculating statistics for voting precincts"
+    blockgroups = gpd.read_file(blockgroups_file)
+    voting_precincts = gpd.read_file(voting_precincts_file)
+
+    district_data[year][precinct_key] = {}
+    for precIndex, precinct in voting_precincts.iterrows():
+        geoid = precinct.PRECINCT
+        district_data[year][precinct_key][geoid] = {}
+        for cat_index, category in categories.iteritems():
+            for cat_type_index, cat_type in category.iteritems():
+                for field in cat_type['fields']:
+                    district_data[year][precinct_key][geoid][field] = 0.0
+
+        precincts_bool = blockgroups.geometry.intersects(precinct.geometry)
+        bg_prec_intersects = blockgroups[precincts_bool]
+        
+        intersections = bg_prec_intersects.intersection(precinct.geometry)
+        areas = intersections.area
+        precPop = 0.0
+        for bg_index, bg in bg_prec_intersects.iterrows():
+            interArea = areas[bg_index]
+            bgArea = GeoSeries(bg.geometry).area[0]
+
+            share = (interArea/bgArea)
+            for field, value in district_data[year]['bg'][bg.GEOID].iteritems():
+                if value is None:
+                    value = 0.0
+                total = district_data[year][precinct_key][geoid][field]
+                total = total + float(value) * share
+                district_data[year][precinct_key][geoid][field] = total
+        
+    return district_data
+
 def main():
     """Builds stats and progressive scores for a Congressional District.
     """
@@ -1134,7 +1201,7 @@ def main():
     settings_dict = read_settings(args)
     census_api_key = settings_dict['census_api_key']
     # TODO
-    # make it modular to state, district, and year
+    # make it modular to state and district
     state = settings_dict['state']
     district = settings_dict['district']
     year = settings_dict['year']
@@ -1166,6 +1233,13 @@ def main():
     categories, district_data = make_edu_data(
             api=census_api_key,
             district_data=district_data,
+            categories=categories,
+            year=year
+        )
+
+    # Add voting precinct data to the district file
+    district_data = make_voting_precinct_data(
+            district_data=district_data, 
             categories=categories,
             year=year
         )
