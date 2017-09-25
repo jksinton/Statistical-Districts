@@ -18,6 +18,11 @@ import gzip
 import tarfile
 import zipfile
 
+import matplotlib
+matplotlib.use('Agg')
+
+import matplotlib.pyplot as plt
+
 import pandas as pd
 import geopandas as gpd
 from geopandas import GeoSeries, GeoDataFrame
@@ -31,7 +36,7 @@ from statlib import *
 
 # GLOBAL CONSTANTS
 
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 
 def read_settings(args):
     """Read the settings stored in settings.ini
@@ -46,6 +51,7 @@ def read_settings(args):
     state = 48
     district = 7
     year = '2015'
+    voting_precincts = None
     
     # Set values in settings.ini
     settings = ConfigParser.ConfigParser()
@@ -60,12 +66,15 @@ def read_settings(args):
         state = args.state
     if args.district:
         district = args.district
+    if args.voting_precincts:
+        voting_precincts = args.voting_precincts
 
     settings_dict = { 
                 "census_api_key": census_api_key,
                 "state": state,
                 "district": district,
-                "year": year
+                "year": year,
+                "voting_precincts": voting_precincts
             }
     
 
@@ -86,10 +95,10 @@ def get_command_line_args():
     parser.add_argument('-s','--state', help='State of District, e.g., TX')
     parser.add_argument('-d','--district', help='District No., e.g., 7')
     parser.add_argument('-y','--year', help='Year of Census data to build')
-    parser.add_argument('-p','--voting-precincts', help='Estimate stats using file with voting precincts')
+    parser.add_argument('-p','--voting-precincts', help='Estimate stats for voting precincts using geospatial vector file, e.g., shapefile or GEOJSON')
     parser.add_argument('-v','--version',action='version', 
             version='%(prog)s %(version)s' % {"prog": parser.prog, "version": _version})
-    parser.add_argument('-d','--debug',help='print debug messages',action="store_true")
+    parser.add_argument('--debug',help='print debug messages',action="store_true")
 
     return parser.parse_args()
 
@@ -110,8 +119,13 @@ def download_file(url, dl_filename):
     url_object=urllib2.urlopen(url)
     dl_file_object=open(dl_filename,'wb')
     meta = url_object.info()
-    file_size = int(meta.getheaders("Content-Length")[0])
-    print "Downloading: %s Bytes: %s" % (dl_filename.split('/')[-1], file_size)
+    file_size = None
+    if len(meta.getheaders("Content-Length")) > 0:
+        file_size = int(meta.getheaders("Content-Length")[0])
+    if file_size is None:
+        print "Downloading: %s" % (dl_filename.split('/')[-1])
+    else:
+        print "Downloading: %s Bytes: %s" % (dl_filename.split('/')[-1], file_size)
     
     current_file_size = 0
     block_size = 8192
@@ -121,10 +135,14 @@ def download_file(url, dl_filename):
             break
         current_file_size += len(buffer)
         dl_file_object.write(buffer)
-        status = r"%10d  [%3.2f%%]" % (current_file_size, current_file_size * 100. / file_size)
+        if file_size is None:
+            status = r"%10d " % (current_file_size)
+        else:
+            status = r"%10d  [%3.2f%%]" % (current_file_size, current_file_size * 100. / file_size)
         status = status + chr(8)*(len(status)+1)
         print status,
     dl_file_object.close()
+    print "\n"
 
 
 def extract_all(fn,dst="."):
@@ -164,92 +182,146 @@ def find_blockgroups_in_district(state=48, district=7, year='2015'):
     """
     state = "{0:0>2}".format(state)
     district = "{0:0>2}".format(district)
-    # TODO
-    # process based on state and district args
-    # set based on args: state, distric
+    
     state_abbr = str(states.mapping('fips', 'abbr')[state])
     district_abbr = state_abbr + district
     geojson_path = 'static/geojson/'
     data_path = 'static/data/'
     bgs_output = district_abbr + '-blockgroups'
     bgs_outputGeoJSON = geojson_path + bgs_output + '.geojson'
+    bgs_outputJSON = data_path + bgs_output + '.json'
 
-    # TODO
-    # see if geojson files is available for district
-    #   if not generate geojson file for district
+    # see if geojson files is available for blockgroups and district
     district_file = geojson_path + 'district-' + district_abbr + '.geojson'
 
-    # TODO download blockgroup shapefile for state, unzip, and read *.shp file
-    # Public domain ftp://ftp2.census.gov/geo/tiger/TIGER2015/BG/tl_2015_48_bg.zip
     blockgroups_file = geojson_path + state_abbr + '-blockgroups.geojson' 
     
-    if not os.path.isfile(district_file):
-        #TODO scrape census website to find most recent file available for download
-        district_url = 'http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_cd115_500k.zip'
+    if not os.path.isfile(bgs_outputGeoJSON):
+        if not os.path.isfile(district_file):
+            print "Downloading district file"
+            # TODO download the most recent districts file
+            # 'http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_cd115_500k.zip'
+            district_url = 'http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_cd115_500k.zip'
+            #district_url = 'ftp://ftpgis1.tlc.state.tx.us/DistrictViewer/Congress/PlanC235.zip'
+            district_dl_file = geojson_path + 'district.zip'
+            download_file(district_url, district_dl_file)
+            extract_all(district_dl_file, geojson_path)
+            districts_shapefile = glob(geojson_path + '*shp')[0]
+            
+            print "Converting district file to GEOJSON"
+            districts = gpd.read_file(districts_shapefile)
+            # used for census file
+            d_index = districts[districts.GEOID == (state + district) ].index
+
+            #d_index = districts[districts.District == int(district) ].index
+            district_shape = districts.loc[d_index]
+            district_shape = district_shape.to_crs({'init': u'epsg:4326'})
+            district_shape.to_file(district_file, driver='GeoJSON')
+
+            # cleanup geojson dir
+            shapefile_prefix = glob(geojson_path + '*shp')[0].split(
+                    geojson_path)[1].split('.')[0]
+            shapefiles = glob(geojson_path + shapefile_prefix + '*')
+            for f in shapefiles:
+                os.remove(f)
+            os.remove(district_dl_file)
+
+        if not os.path.isfile(blockgroups_file):
+            print "Downloading blockgroups"
+            bgs_url = 'ftp://ftp2.census.gov/geo/tiger/TIGER{year}/BG/tl_{year}_{state}_bg.zip'.format(year=year, state=state)
+            bgs_dl_file = geojson_path + 'bgs.zip'
+            download_file(bgs_url, bgs_dl_file)
+            extract_all(bgs_dl_file, geojson_path)
+            bgs_shapefile = glob(geojson_path + '*shp')[0]
+
+            print "Converting blockgroups file to GEOJSON"
+            bgs = gpd.read_file(bgs_shapefile)
+            bgs = bgs.to_crs({'init': u'epsg:4326'})
+            bgs.to_file(blockgroups_file, driver='GeoJSON')
+
+            # cleanup geojson dir
+            shapefile_prefix = glob(geojson_path + '*shp')[0].split(
+                    geojson_path)[1].split('.')[0]
+            shapefiles = glob(geojson_path + shapefile_prefix + '*')
+            for f in shapefiles:
+                os.remove(f)
+            os.remove(bgs_dl_file)
         
-        district_dl_file = geojson_path + 'district.zip'
-        download_file(district_url, district_dl_file)
-        extract_all(district_dl_file, geojson_path)
-        districts_shapefile = glob(geojson_path + '*shp')[0]
+        print "Finding blockgroups in district"
+        district = gpd.read_file(district_file)
+        block_groups = gpd.read_file(blockgroups_file)
         
-        districts = gpd.read_file(districts_shapefile)
-        d_index = districts.GEOID[districts.GEOID == (state + district) ].index
-        district_shape = districts.loc[d_index]
-        district_shape = district_shape.to_crs({'init': u'epsg:4326'})
-        district_shape.to_file(district_file, driver='GeoJSON')
+        print "Finding blockgroups that touch the district boundary"
+        bgs_touching_district_bool = block_groups.touches(district.geometry[0])
+        
+        print "Finding blockgroups that intersect the district boundary"
+        bgs_intersecting_district_bool = block_groups.intersects(district.geometry[0])
+        
+        print "Filtering the blockgroups"
+        for index in bgs_touching_district_bool[bgs_touching_district_bool==True].index:
+            bgs_intersecting_district_bool.loc[index] = False
 
-        # cleanup geojson dir
-        shapefile_prefix = glob(geojson_path + '*shp')[0].split(
-                geojson_path)[1].split('.')[0]
-        shapefiles = glob(geojson_path + shapefile_prefix + '*')
-        for f in shapefiles:
-            os.remove(f)
-        os.remove(district_dl_file)
+        bgs_in_district = block_groups[bgs_intersecting_district_bool]
+ 
+        print "Finding blockgroups to filter based on threshold"
+        intersections = bgs_in_district.intersection(district.geometry[0])
+
+        areas_of_intersections = intersections.area
+        indx_out = []
+        for bg_index, bg in bgs_in_district.iterrows():
+            area_of_intersection = areas_of_intersections[bg_index]
+            bg_area = GeoSeries(bg.geometry).area[0]
+
+            share_of_intersection = area_of_intersection / bg_area
+            
+            if share_of_intersection < 0.10:
+                indx_out.append(bg_index)
+
+            #print "\nBlock Group: ", bg.GEOID
+            #print "Area: ", str(bg_area)
+            #print "Share of Intersection: ", str(share_of_intersection)
+        
+        bgs_to_remove_bool = pd.Series([False]*len(block_groups))
+
+        for index in indx_out:
+            bgs_to_remove_bool.loc[index] = True
+
+        bgs_to_remove = block_groups[bgs_to_remove_bool]
+
+        for index in bgs_to_remove_bool[bgs_to_remove_bool==True].index:
+            bgs_intersecting_district_bool.loc[index] = False
+
+        bgs_in_district = block_groups[bgs_intersecting_district_bool]
+
+        # See issue #367 https://github.com/geopandas/geopandas/issues/367
+        try: 
+            os.remove(bgs_outputGeoJSON)
+        except OSError:
+            pass
+        bgs_in_district.to_file(bgs_outputGeoJSON, driver='GeoJSON')
+        
+        # Create json file of geo units
+        bgs_in_district[['BLKGRPCE','COUNTYFP', 'STATEFP', 'TRACTCE', 'GEOID']].to_json(bgs_outputJSON)
+        
+        plt.figure(figsize=(400, 400))
+        district_plot=district.plot(color='blue', alpha=0.5)
+        bgs_in_district.plot(ax=district_plot, color='green',alpha=0.5)
+        plt.savefig(bgs_output,dpi=600)
+        plt.close()
+
+        plt.figure(figsize=(400, 400))
+        district_plot=district.plot(color='blue', alpha=0.5)
+        block_groups[bgs_touching_district_bool].plot(ax=district_plot, color='green',alpha=0.5)
+        plt.savefig(bgs_output + '-touching',dpi=600)
+        plt.close()
+
+        plt.figure(figsize=(400, 400))
+        district_plot=district.plot(color='blue', alpha=0.5)
+        bgs_to_remove.plot(ax=district_plot, color='green',alpha=0.5)
+        plt.savefig(bgs_output + '-threshold-filter',dpi=600)
+        plt.close()
 
         
-    if not os.path.isfile(blockgroups_file):
-        #TODO
-        bgs_url = 'ftp://ftp2.census.gov/geo/tiger/TIGER' +
-            year + '/BG/tl_' + year +'_' + state + '_bg.zip'
-        bgs_dl_file = geojson_path + 'bgs.zip'
-        download_file(bgs_url, bgs_dl_file)
-        extract_all(bgs_dl_file, geojson_path)
-        bgs_shapefile = glob(geojson_path + '*shp')[0]
-
-        bgs = gpd.read_file(bgs_shapefile)
-        bgs = bgs.to_crs({'init': u'epsg:4326'})
-        bgs.to_file(blockgroups_file, driver='GeoJSON')
-
-        # cleanup geojson dir
-        shapefile_prefix = glob(geojson_path + '*shp')[0].split(
-                geojson_path)[1].split('.')[0]
-        shapefiles = glob(geojson_path + shapefile_prefix + '*')
-        for f in shapefiles:
-            os.remove(f)
-        os.remove(bgs_dl_file)
-    
-    district = gpd.read_file(district_file)
-    block_groups = gpd.read_file(blockgroups_file)
-    
-    bgs_touching_district_bool = block_groups.touches(district.geometry[0])
-    
-    bgs_intersecting_district_bool = block_groups.intersects(district.geometry[0])
-
-    for index in bgs_touching_district_bool[bgs_touching_district_bool==True].index:
-        bgs_intersecting_district_bool.loc[index] = False
-
-    bgs_in_district = block_groups[bgs_intersecting_district_bool]
-
-    # See issue #367 https://github.com/geopandas/geopandas/issues/367
-    try: 
-        os.remove(bgs_outputGeoJSON)
-    except OSError:
-        pass
-    bgs_in_district.to_file(bgs_outputGeoJSON, driver='GeoJSON')
-
-    # Create json file of geo units
-    bgs_in_district[['BLKGRPCE','COUNTYFP', 'STATEFP', 'TRACTCE', 'GEOID']].to_json(data_path + bgs_output +'.json')
-    
 
 def get_blockgroup_census_data(api, fields, census_data = {}, state=48, district=7, year='2015'):
     """Retrieve the census data for the block groups in a Congressional District
@@ -273,7 +345,16 @@ def get_blockgroup_census_data(api, fields, census_data = {}, state=48, district
             census_data[year][blockgroup_key] = { }
     # TODO make dynamic to state and district
     # also read a json file
-    bgs_in_district = pd.read_csv('static/data/tx7-blockgroups.csv')
+
+    state = "{0:0>2}".format(state)
+    district = "{0:0>2}".format(district)
+    
+    state_abbr = str(states.mapping('fips', 'abbr')[state])
+    district_abbr = state_abbr + district
+    data_path = 'static/data/'
+    bgs_in_district_file = data_path + district_abbr + '-blockgroups.json'
+
+    bgs_in_district = pd.read_json(bgs_in_district_file)
     
     # Setup Census query
     census_query = Census(api, year=year)
@@ -398,6 +479,7 @@ def load_district_data(district_data_file='static/data/district-data.json',
             district_data = json.load(district_json)
 
     return district_data
+
 
 def make_pid_and_class_data(census_data_in_district, pid_classes, 
         census_classes, pid_total_field, district_data={}, year='2015', geo_key='bg' ):
@@ -746,7 +828,6 @@ def make_income_data(api, district_data = {}, categories = {'Income': { }},
         state: 
         district: 
         year: 
-        make_voting_precinct: dtype(bool)
     Returns: 
         categories:
         district_data:
@@ -915,7 +996,6 @@ def make_race_data( api,  district_data = {}, categories = {'Race': { }},
         state: 
         district: 
         year: 
-        make_voting_precinct: dtype(bool)
     Returns: 
         categories:
         district_data:
@@ -1057,7 +1137,6 @@ def make_edu_data( api,  district_data = {}, categories = {'Education': { }},
         state: 
         district: 
         year: 
-        make_voting_precinct: dtype(bool)
     Returns: 
         categories:
         district_data:
@@ -1188,14 +1267,13 @@ def make_edu_data( api,  district_data = {}, categories = {'Education': { }},
     return categories, district_data
 
 
-def make_voting_precinct_data(categories, district_data = {}, year='2015',
-        blockgroups_file='static/geojson/tx7-blockgroups.geojson', 
+def make_voting_precinct_data(categories, district_data = {}, state=48, district=7, year='2015',
         voting_precincts_file='static/geojson/tx7-precincts.geojson'):
     """
     Args: 
         district_data:
         blockgroups:
-        voting_precincts:
+        voting_precincts_file:
     Returns: 
         categories:
         district_data:
@@ -1204,10 +1282,19 @@ def make_voting_precinct_data(categories, district_data = {}, year='2015',
     """
     precinct_key = 'precinct'
     
+    state = "{0:0>2}".format(state)
+    district = "{0:0>2}".format(district)
+    
+    state_abbr = str(states.mapping('fips', 'abbr')[state])
+    district_abbr = state_abbr + district
+    geojson_path = 'static/geojson/'
+
+    blockgroups_file = geojson_path + district_abbr + '-blockgroups.geojson' 
+
     print "Calculating statistics for voting precincts"
     blockgroups = gpd.read_file(blockgroups_file)
     voting_precincts = gpd.read_file(voting_precincts_file)
-
+    
     district_data[year][precinct_key] = {}
     for precIndex, precinct in voting_precincts.iterrows():
         geoid = precinct.PRECINCT
@@ -1215,51 +1302,42 @@ def make_voting_precinct_data(categories, district_data = {}, year='2015',
         for cat_index, category in categories.iteritems():
             for cat_type_index, cat_type in category.iteritems():
                 for field in cat_type['fields']:
-                    district_data[year][precinct_key][geoid][field] = 0.0
+                    if field not in 'median_income':
+                        district_data[year][precinct_key][geoid][field] = 0.0
 
         precincts_bool = blockgroups.geometry.intersects(precinct.geometry)
         bg_prec_intersects = blockgroups[precincts_bool]
         
         intersections = bg_prec_intersects.intersection(precinct.geometry)
         areas = intersections.area
-        precPop = 0.0
         for bg_index, bg in bg_prec_intersects.iterrows():
             interArea = areas[bg_index]
             bgArea = GeoSeries(bg.geometry).area[0]
 
             share = (interArea/bgArea)
             for field, value in district_data[year]['bg'][bg.GEOID].iteritems():
-                if value is None:
-                    value = 0.0
-                total = district_data[year][precinct_key][geoid][field]
-                total = total + float(value) * share
-                district_data[year][precinct_key][geoid][field] = total
+                if 'median_income' not in field:
+                    if value is None:
+                        value = 0.0
+                    total = district_data[year][precinct_key][geoid][field]
+                    total = total + float(value) * share
+                    district_data[year][precinct_key][geoid][field] = total
         
     return district_data
 
-def main():
-    """Builds stats and progressive scores for a Congressional District.
-    """
-    args = get_command_line_args()
-    settings_dict = read_settings(args)
-    census_api_key = settings_dict['census_api_key']
-    # TODO
-    # make it modular to state and district
-    state = settings_dict['state']
-    district = settings_dict['district']
-    year = settings_dict['year']
-    
+
+def make_district_data(api, state, district, year):
     district_data=load_district_data()
 
     # Make the age categories and data for the district file
     categories, district_data = make_age_data(
-            api=census_api_key, 
+            api=api, 
             district_data=district_data,
             year=year)
     
     # Add income categories and data to the district file
     categories, district_data = make_income_data(
-            api=census_api_key,
+            api=api,
             district_data=district_data,
             categories=categories,
             year=year
@@ -1267,25 +1345,55 @@ def main():
     
     # Add race categories and data to the district file
     categories, district_data = make_race_data(
-            api=census_api_key,
+            api=api,
             district_data=district_data,
             categories=categories,
             year=year
         )
     # Add educational categories and data to the district file
     categories, district_data = make_edu_data(
-            api=census_api_key,
+            api=api,
             district_data=district_data,
             categories=categories,
             year=year
         )
 
-    # Add voting precinct data to the district file
-    district_data = make_voting_precinct_data(
-            district_data=district_data, 
-            categories=categories,
+    return categories, district_data
+
+
+def main():
+    """Builds stats and progressive scores for a Congressional District.
+    """
+    args = get_command_line_args()
+    settings = read_settings(args)
+    
+    census_api_key = settings['census_api_key']
+    state = settings['state']
+    district = settings['district']
+    year = settings['year']
+    voting_precincts_file = settings['voting_precincts']
+    
+    find_blockgroups_in_district(
+            state=state,
+            district=district,
             year=year
         )
+
+    categories, district_data = make_district_data(
+            api=census_api_key,
+            state=state,
+            district=district,
+            year=year
+        )
+    
+    if voting_precincts_file is not None:
+        # Add voting precinct data to the district file
+        district_data = make_voting_precinct_data(
+                district_data=district_data, 
+                categories=categories,
+                year=year,
+                voting_precincts_file=voting_precincts_file
+            )
 
     to_json(district_data, "static/data/district-data.json")
     to_json(categories, "static/data/categories.json")

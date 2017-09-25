@@ -23,8 +23,8 @@ var geounit_labels = {
 	'precinct': 'Precinct'
 };
 var geounit_files = {
-	'tract': '/static/geojson/tx7-tracts.geojson',
-	'bg': '/static/geojson/tx7-blockgroups.geojson',
+	'tract': '/static/geojson/TX07-tracts.geojson',
+	'bg': '/static/geojson/TX07-blockgroups.geojson',
 	'precinct': '/static/geojson/tx7-precincts.geojson'
 };
 var property_name = 'GEOID';
@@ -105,8 +105,8 @@ function init() {
 	district_layer = new google.maps.Data({map: map});
 	geounits_layer = new google.maps.Data({map: map});
 	
-	
-	district_layer.loadGeoJson("/static/geojson/tx7.geojson");
+	//district_layer.loadGeoJson("/static/geojson/tx7.geojson");
+	district_layer.loadGeoJson("/static/geojson/district-TX07.geojson");
 	
 	district_layer.setStyle({
 		clickable: false,
@@ -163,7 +163,7 @@ function load_maps() {
 		controls.style.opacity = 1;
 	});
 	geounits_layer.loadGeoJson(
-		"/static/geojson/tx7-blockgroups.geojson", 
+		geounit_files[geounit_type],
 		{ idPropertyName: property_name },
 		function (features) {
 			google.maps.event.trigger(document.getElementById('fields'), 'change');
@@ -171,7 +171,7 @@ function load_maps() {
 	);
 }
 
-// TODO change from embedded onclick to DOM populated onclicks
+// TODO change from static embedded onclicks to DOM populated onclicks
 function set_nav_behavior(){
 	var age_census = document.getElementById("age-census");
 	age_census.onclick = load_category('Age', 'Census');
@@ -180,7 +180,7 @@ function set_nav_behavior(){
 
 function set_select_box() {
 	var select_box = document.getElementById('fields');
-	// clear any options
+	// clear any old options
 	while (select_box.firstChild) {
     	select_box.removeChild(select_box.firstChild);
 	}
@@ -199,6 +199,16 @@ function load_category(c, c_type) {
 	fields = categories[category][category_type]['fields'];
 	labels = categories[category][category_type]['labels'];
 	
+	if( property_name === 'PRECINCT' ) {
+		// remove the median income field if it's precinct
+		if( category === 'Income' && category_type === 'Census' ){
+			var index = fields.indexOf('median_income');
+			if (index > -1) {
+    			fields.splice(index, 1);
+			}
+		}
+	}
+
 	set_select_box();
 	google.maps.event.trigger(document.getElementById('fields'), 'change');
 
@@ -207,18 +217,31 @@ function load_category(c, c_type) {
 
 
 function load_geounit(geounit) {
+	fields = categories[category][category_type]['fields'];
+	labels = categories[category][category_type]['labels'];
+
 	geounit_type = geounit;
 	property_name = 'GEOID';
 	if( geounit === 'precinct' ) {
 		property_name = 'PRECINCT';
+		
+		// remove the median income field if it's precinct
+		if( category === 'Income' && category_type === 'Census' ){
+			var index = fields.indexOf('median_income');
+			if (index > -1) {
+    			fields.splice(index, 1);
+			}
+		}
 	}
 	// clear geounits_layer
 	geounits_layer.forEach(function(feature){
 		geounits_layer.remove(feature);
 	});
 	
-	// clear the geounites set to highlight from distribution chart
+	// clear the geounits which are set to be highlighted from distribution chart
 	hover_geounits = [];
+	
+	set_select_box();
 	
 	geounits_layer.loadGeoJson(
 		geounit_files[geounit_type],
@@ -231,16 +254,13 @@ function load_geounit(geounit) {
 
 function load_map_data(selected_variable) {
 	console.log('Loading map data');
-	console.log(data['2015']);
 	
 	geounits_layer.forEach(function(feature){
 		var geoid = feature.getProperty(property_name);
-		console.log('GEOID:  ' + geoid);
-		console.log('Geounit Type:  ' + geounit_type);
-		console.log(data['2015'][geounit_type.toString()]);
+		//console.log('GEOID:  ' + geoid);
+		//console.log('Geounit Type:  ' + geounit_type);
+		//console.log(data['2015'][geounit_type.toString()]);
 		var data_value = parseInt(data['2015'][geounit_type.toString()][geoid.toString()][selected_variable]);
-		//TODO add debug flag
-		//console.log('Value:  ' + data_value.toString());
 		
 		// keep track of min and max values
 		if (data_value < district_min) {
@@ -457,6 +477,11 @@ function init_district_chart() {
 	for(var i = 0; i < fields.length; i++) {
 		barchart_labels[i] = labels[fields[i]];
 	}
+	var index = barchart_labels.indexOf(labels['median_income']);
+	if (index > -1) {
+    	barchart_labels.splice(index, 1);
+	}
+
 	district_chart_data = {
 			labels: barchart_labels,
 			datasets: []
@@ -526,6 +551,10 @@ function load_district_chart() {
 	}
 	for(var i = 0; i < fields.length; i++) {
 		barchart_labels[i] = labels[fields[i]];
+	}
+	var index = barchart_labels.indexOf(labels['median_income']);
+	if (index > -1) {
+    	barchart_labels.splice(index, 1);
 	}
 
 	district_chart_data.labels = barchart_labels;
