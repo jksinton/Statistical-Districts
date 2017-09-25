@@ -53,6 +53,7 @@ var chartColors = {
 	grey: 'rgb(201, 203, 207)'
 };
 var colorNames = Object.keys(chartColors);
+var slideout;
 
 function loadGoogleMapsAPI() {
     var script = document.createElement('script');
@@ -65,12 +66,29 @@ function loadGoogleMapsAPI() {
     document.body.appendChild(script);
 }
 
+
 window.onload = loadGoogleMapsAPI;
- 
+
+
 function init() {
 	/* TODO
 	 * get variable settings for a particular congressional district 
 	 */
+	
+	slideout = new Slideout({
+		'panel': document.getElementById('panel'),
+		'menu': document.getElementById('menu'),
+		'padding': 256,
+		'tolerance': 70
+	});
+	
+	// Toggle button
+	var hamburger = document.querySelector(".hamburger");
+   	hamburger.addEventListener('click', function() {
+		slideout.toggle();
+		hamburger.classList.toggle("is-active");
+   	});
+
 	category = 'Age';
 	category_type = 'Census';
 	geounit_type = 'bg';
@@ -148,7 +166,7 @@ function init() {
 		load_district_chart();
 		document.getElementById('geounit_chart').style.display = 'none';
     });
-	
+
 	load_maps();
 	init_distribution_chart(selected_variable);
 	init_district_chart();
