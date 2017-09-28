@@ -62,18 +62,25 @@
 				</ul>
 			</ul> <!--End ul nav-list -->
 		</nav> <!--End nav -->
+		
+		<header class="fixed-header">
+			<button class="hamburger hamburger--collapse" type="button">
+				<span class="hamburger-box">
+					<span class="hamburger-inner"></span>
+				</span>
+			</button>  
+		</header>
+
 		<main id="panel">
-			<header>
-				<button class="hamburger hamburger--collapse" type="button">
-					<span class="hamburger-box">
-						<span class="hamburger-inner"></span>
-					</span>
-				</button>  
-			</header>
 			<div class="container">
 				<div class="row" >
 					<div class="col-lg-12">
-						<h3>Statistical Districts</h3>
+						<canvas id="distribution_chart" height='250'></canvas>
+					</div> <!--End col -->
+				</div> <!--End row -->
+				<div class="row" >
+					<div class="col-lg-12">
+						<h3><a href="https://github.com/jksinton/Statistical-Districts">Statistical Districts</a></h3>
 						<div id="controls" class="nicebox">
 							<div>
 								<select id="fields"></select>
@@ -90,15 +97,11 @@
 						</div> <!--End div data-box -->
 						<div id="map"></div>
 					</div> <!--End col -->
-					<div class="col-lg-2" id="nav-sidebar">
-
-					</div> <!--End col -->
 				</div> <!--End row -->
 				<div class="row" >
 					<div class="col-lg-12">
 						<p></p>
 						<canvas id="geounit_chart"></canvas>
-						<canvas id="distribution_chart"></canvas>
 						<canvas id="district_chart"></canvas>
 					</div> <!--End col -->
 				</div> <!--End row -->

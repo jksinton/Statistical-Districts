@@ -68,32 +68,48 @@ html, body { height: 100%; width: 100%; margin: 0; padding: 0; }
 
 /* mango slideout menu */
 
+button.hamburger {
+	outline: none;
+}
+
+.fixed-header {
+	position: fixed;
+	width: 100%;
+	height: 50px;
+	backface-visibility: hidden;
+	z-index: 2;
+}
+
+ul.nav {
+	padding-left: 20px;
+}
+
 .slideout-menu {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  width: 256px;
-  min-height: 100vh;
-  overflow-y: scroll;
-  -webkit-overflow-scrolling: touch;
-  z-index: 0;
-  display: none;
+	position: fixed;
+  	top: 0;
+  	bottom: 0;
+  	width: 256px;
+  	min-height: 100vh;
+  	overflow-y: scroll;
+  	-webkit-overflow-scrolling: touch;
+  	z-index: 0;
+  	display: none;
 }
 
 .slideout-menu-left {
-  left: 0;
+  	left: 0;
 }
 
 .slideout-menu-right {
-  right: 0;
+  	right: 0;
 }
 
 .slideout-panel {
-  position: relative;
-  z-index: 1;
-  will-change: transform;
-  background-color: #FFF; /* A background-color is required */
-  min-height: 100vh;
+  	position: relative;
+  	z-index: 1;
+  	will-change: transform;
+  	background-color: #FFF; /* A background-color is required */
+  	min-height: 100vh;
 }
 /*
 .slideout-open,
@@ -103,5 +119,5 @@ html, body { height: 100%; width: 100%; margin: 0; padding: 0; }
 }
 */
 .slideout-open .slideout-menu {
-  display: block;
+  	display: block;
 }

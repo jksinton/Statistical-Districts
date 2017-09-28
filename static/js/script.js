@@ -82,6 +82,30 @@ function init() {
 		'tolerance': 70
 	});
 	
+	var fixed = document.querySelector('.fixed-header');
+
+	slideout.on('translate', function(translated) {
+	  fixed.style.transform = 'translateX(' + translated + 'px)';
+	});
+
+	slideout.on('beforeopen', function () {
+	  fixed.style.transition = 'transform 300ms ease';
+	  fixed.style.transform = 'translateX(256px)';
+	});
+
+	slideout.on('beforeclose', function () {
+	  fixed.style.transition = 'transform 300ms ease';
+	  fixed.style.transform = 'translateX(0px)';
+	});
+
+	slideout.on('open', function () {
+	  fixed.style.transition = '';
+	});
+
+	slideout.on('close', function () {
+	  fixed.style.transition = '';
+	});
+
 	// Toggle button
 	var hamburger = document.querySelector(".hamburger");
    	hamburger.addEventListener('click', function() {
@@ -412,6 +436,7 @@ function init_distribution_chart(selected_variable) {
 
 		// Configuration options go here
 		options: {
+			maintainAspectRatio: false,
 			onHover: mouse_on_chart,
 			title: {
 				display: true,
