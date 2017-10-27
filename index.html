@@ -25,6 +25,7 @@
 	<body>
 		<nav id="menu">
 			<div class="sidebar-info" id="sidebar-info">
+				<h3><a href="https://github.com/jksinton/Statistical-Districts">Statistical Districts</a></h3>
 				<h4>Congressional District TX-07</h4>
 				<label id="district-over-18-label" for="district-over-18-value"></label>
 				<div id="district-over-18-value"></div>
@@ -32,33 +33,33 @@
 				<div id="district-data-value"></div>
 			</div> <!--End sidebar div -->
 			<ul class="nav" id="nav-list">
-				<li><a id="tract" onclick="load_geounit('tract')" href="#">Tract</a></li>
-				<li><a id="blockgroup" onclick="load_geounit('bg')" href="#">Block Group</a></li>
-				<li><a id="voting-precinct" onclick="load_geounit('precinct')" href="#">Voting Precinct</a></li>
+				<li><a id="tract" onclick="load_geounit('tract')" href="#map">Tract</a></li>
+				<li><a id="blockgroup" onclick="load_geounit('bg')" href="#map">Block Group</a></li>
+				<li><a id="voting-precinct" onclick="load_geounit('precinct')" href="#map">Voting Precinct</a></li>
 				<li>Age</li>
 				<ul>
-					<li><a id="age-census" onclick="load_category('Age', 'Census')" href="#">Census</a></li>
-					<li><a id="age-pid" onclick="load_category('Age', 'PID')" href="#">PID</a></li>
+					<li><a id="age-census" onclick="load_category('Age', 'Census')" href="#map">Census</a></li>
+					<li><a id="age-pid" onclick="load_category('Age', 'PID')" href="#map">PID</a></li>
 				</ul>
 				<li>Race</li>
 				<ul>
-					<li><a id="race-census" onclick="load_category('Race', 'Census')" href="#">Census</a></li>
-					<li><a id="race-pid" onclick="load_category('Race', 'PID')" href="#">PID</a></li>
+					<li><a id="race-census" onclick="load_category('Race', 'Census')" href="#map">Census</a></li>
+					<li><a id="race-pid" onclick="load_category('Race', 'PID')" href="#map">PID</a></li>
 				</ul>
 				<li>Income</li>
 				<ul>
-					<li><a id="income-census" onclick="load_category('Income', 'Census')" href="#">Census</a></li>
-					<li><a id="income-pid" onclick="load_category('Income', 'PID')" href="#">PID</a></li>
+					<li><a id="income-census" onclick="load_category('Income', 'Census')" href="#map">Census</a></li>
+					<li><a id="income-pid" onclick="load_category('Income', 'PID')" href="#map">PID</a></li>
 				</ul>
 				<li>Education</li>
 				<ul>
-					<li><a id="edu-census" onclick="load_category('Education', 'Census')" href="#">Census</a></li>
-					<li><a id="edu-pid" onclick="load_category('Education', 'PID')" href="#">PID</a></li>
+					<li><a id="edu-census" onclick="load_category('Education', 'Census')" href="#map">Census</a></li>
+					<li><a id="edu-pid" onclick="load_category('Education', 'PID')" href="#map">PID</a></li>
 				</ul>
 				<li>Election Results</li>
 				<ul>
-					<li><a id="elec-2016" onclick="loadElectionResults(2016)" href="#">2016</a></li>
-					<li><a id="elec-2014" onclick="loadElectionResults(2014)" href="#">2014</a></li>
+					<li><a id="elec-2016" onclick="loadElectionResults(2016)" href="#map">2016</a></li>
+					<li><a id="elec-2014" onclick="loadElectionResults(2014)" href="#map">2014</a></li>
 				</ul>
 			</ul> <!--End ul nav-list -->
 		</nav> <!--End nav -->
@@ -71,16 +72,20 @@
 			</button>  
 		</header>
 
+
 		<main id="panel">
 			<div class="container">
-				<div class="row" >
+
+				<div class="row">
 					<div class="col-lg-12">
+						<!-- DO NOT PUT ANYTHING ELSE IN THIS DIV -->
 						<canvas id="distribution_chart" height='250'></canvas>
 					</div> <!--End col -->
 				</div> <!--End row -->
-				<div class="row" >
+		
+
+				<div class="row">
 					<div class="col-lg-12">
-						<h3><a href="https://github.com/jksinton/Statistical-Districts">Statistical Districts</a></h3>
 						<div id="controls" class="nicebox">
 							<div>
 								<select id="fields"></select>
@@ -98,13 +103,57 @@
 						<div id="map"></div>
 					</div> <!--End col -->
 				</div> <!--End row -->
-				<div class="row" >
+		
+
+				<div class="row">
 					<div class="col-lg-12">
 						<p></p>
 						<canvas id="geounit_chart"></canvas>
 						<canvas id="district_chart"></canvas>
 					</div> <!--End col -->
 				</div> <!--End row -->
+
+
+				<div class="row">
+					<div class="panel-group">
+						<div class="panel panel-default">
+							
+							<div class="panel-heading">
+						  		<h4 class="panel-title">
+									<a data-toggle="collapse" href="#collapse1">Top Precincts</a>
+						  		</h4> <!--End heading -->
+							</div>  <!--End panel-heading -->
+							
+							<div id="collapse1" class="panel-collapse collapse">
+						  		<div class="panel-body">Panel Body</div>
+								<table class="table table-hover table-striped" id="top-precincts-table"></table>
+							</div>  <!--End collapse1 -->
+						
+						</div>  <!--End panel -->
+					</div>  <!--End panel-group -->
+				</div> <!--End row -->
+
+
+				<div class="row horizontal-line">
+					<hr class="horizontal-line">
+				</div> <!--End row -->
+				
+				
+				<div class="row bottom-row">
+					<div class="col-lg-12">
+						<p class="footer" id="version">
+							Version 0.1.0
+						</p>
+						<p class="footer">
+						Copyright &copy; 2017, James Sinton   All rights reserved.
+						</p>
+						<p class="footer">
+							<a href="https://github.com/jksinton/Statistical-Districts/blob/master/LICENSE">License</a>
+						</p>
+					</div> <!--End col -->
+				</div> <!--End row -->
+
+
 			</div> <!--End container -->
 		</div> <!--End main panel -->
 	</body>

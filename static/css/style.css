@@ -9,6 +9,18 @@
  */
 
 html, body { height: 100%; width: 100%; margin: 0; padding: 0; }
+
+a, u {
+    text-decoration: none;
+    cursor: pointer;
+}
+
+a:hover {
+	color: #07C;
+    text-decoration:none !important;
+    cursor:pointer;
+}
+
 #map {
 	width: 100%;
 	height: 700px;
@@ -66,6 +78,37 @@ html, body { height: 100%; width: 100%; margin: 0; padding: 0; }
 #data-label:after { content: ':' }
 #data-caret { margin-left: -5px; display: none; font-size: 14px; width: 14px}
 
+#top-precincts-panel { 
+	/*display: none  */
+}
+
+div.panel-group {
+	margin: 10px;
+	padding-top: 50px;
+}
+
+div.bottom-row { 
+	padding-bottom: 50px 
+}
+
+p.footer {
+	margin: 10px;
+	text-align: center;
+}
+
+/*Designer Line - Horizontal*/
+div.horizontal-line {
+  padding-top: 50px;
+}
+hr.horizontal-line {
+  border: 0;
+  height: 3px;
+  background-image: -webkit-linear-gradient(left, rgba(26,188,156,0), rgba(26,188,156,0.75), rgba(26,188,156,0));
+  background-image: -moz-linear-gradient(left, rgba(26,188,156,0), rgba(26,188,156,0.75), rgba(26,188,156,0));
+  background-image: -ms-linear-gradient(left, rgba(26,188,156,0), rgba(26,188,156,0.75), rgba(26,188,156,0));
+  background-image: -o-linear-gradient(left, rgba(26,188,156,0), rgba(26,188,156,0.75), rgba(26,188,156,0));
+}
+
 /* mango slideout menu */
 
 button.hamburger {
@@ -111,13 +154,7 @@ ul.nav {
   	background-color: #FFF; /* A background-color is required */
   	min-height: 100vh;
 }
-/*
-.slideout-open,
-.slideout-open body,
-.slideout-open .slideout-panel {
-  overflow: hidden;
-}
-*/
+
 .slideout-open .slideout-menu {
   	display: block;
 }

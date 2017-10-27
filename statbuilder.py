@@ -8,30 +8,32 @@
 # Released under the BSD 3-Clause License
 # See https://github.com/jksinton/Statistical-Districts/blob/master/LICENSE
 
-import os
+# standard libraries
 import argparse
+import os
+from collections import OrderedDict
 import ConfigParser
-import json
-import re
-import urllib2
+import errno
+from glob import glob
 import gzip
+import json
+import urllib2
+import re
 import tarfile
 import zipfile
 
+# third-party libraries
+from census import Census
+import geopandas as gpd
+from geopandas import GeoSeries
+from geopandas import GeoDataFrame
 import matplotlib
 matplotlib.use('Agg')
-
 import matplotlib.pyplot as plt
-
 import pandas as pd
-import geopandas as gpd
-from geopandas import GeoSeries, GeoDataFrame
-
-from collections import OrderedDict
-from census import Census
 from us import states
-from glob import glob
 
+# local libaries
 from statlib import *
 
 # GLOBAL CONSTANTS
@@ -103,6 +105,26 @@ def get_command_line_args():
     return parser.parse_args()
 
 
+def mkdir_p(path):
+    """create a directory with mkdir -p functionality
+    Args:
+        path: path to create
+    Returns:
+        Nothing
+    Raises:
+        OSError
+
+    See https://stackoverflow.com/questions/600268/mkdir-p-functionality-in-python
+    """
+    try:
+        os.makedirs(path)
+    except OSError as exc:  # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
+
+
 def download_file(url, dl_filename):
     """Download a file given the url and filename
     Args:
@@ -170,7 +192,7 @@ def extract_all(fn,dst="."):
 # def find_tracts_in_district(state='48', district='07'):
 
 
-def find_blockgroups_in_district(state=48, district=7, year='2015'):
+def find_blockgroups_in_district(state=48, district=7, year='2015', debug_is_on=False):
     """Find the blockgroups that intersect with a Congressional District.
     Args:
         state: The state where the Congressional district is in
@@ -303,24 +325,24 @@ def find_blockgroups_in_district(state=48, district=7, year='2015'):
         # Create json file of geo units
         bgs_in_district[['BLKGRPCE','COUNTYFP', 'STATEFP', 'TRACTCE', 'GEOID']].to_json(bgs_outputJSON)
         
-        plt.figure(figsize=(400, 400))
-        district_plot=district.plot(color='blue', alpha=0.5)
-        bgs_in_district.plot(ax=district_plot, color='green',alpha=0.5)
-        plt.savefig(bgs_output,dpi=600)
-        plt.close()
+        if debug_is_on:
+            plt.figure(figsize=(400, 400))
+            district_plot=district.plot(color='blue', alpha=0.5)
+            bgs_in_district.plot(ax=district_plot, color='green',alpha=0.5)
+            plt.savefig(bgs_output,dpi=600)
+            plt.close()
 
-        plt.figure(figsize=(400, 400))
-        district_plot=district.plot(color='blue', alpha=0.5)
-        block_groups[bgs_touching_district_bool].plot(ax=district_plot, color='green',alpha=0.5)
-        plt.savefig(bgs_output + '-touching',dpi=600)
-        plt.close()
+            plt.figure(figsize=(400, 400))
+            district_plot=district.plot(color='blue', alpha=0.5)
+            block_groups[bgs_touching_district_bool].plot(ax=district_plot, color='green',alpha=0.5)
+            plt.savefig(bgs_output + '-touching',dpi=600)
+            plt.close()
 
-        plt.figure(figsize=(400, 400))
-        district_plot=district.plot(color='blue', alpha=0.5)
-        bgs_to_remove.plot(ax=district_plot, color='green',alpha=0.5)
-        plt.savefig(bgs_output + '-threshold-filter',dpi=600)
-        plt.close()
-
+            plt.figure(figsize=(400, 400))
+            district_plot=district.plot(color='blue', alpha=0.5)
+            bgs_to_remove.plot(ax=district_plot, color='green',alpha=0.5)
+            plt.savefig(bgs_output + '-threshold-filter',dpi=600)
+            plt.close()
         
 
 def get_blockgroup_census_data(api, fields, census_data = {}, state=48, district=7, year='2015'):
@@ -1288,6 +1310,16 @@ def make_voting_precinct_data(categories, district_data = {}, state=48, district
     state_abbr = str(states.mapping('fips', 'abbr')[state])
     district_abbr = state_abbr + district
     geojson_path = 'static/geojson/'
+    
+    # TODO generate voting precincts using these resources:
+    # Open Elections data - https://github.com/openelections/openelections-core
+    #   This can provide the voting precincts in a Congressional District
+    # Election Geodata - https://github.com/nvkelso/election-geodata
+    #   This can provide the voting precincts for an election year
+
+    if os.path.isdir(geojson_path) == False:
+        print "Making path {path}".format(path=geojson_path)
+        mkdir_p(geojson_path)
 
     blockgroups_file = geojson_path + district_abbr + '-blockgroups.geojson' 
 
@@ -1322,7 +1354,13 @@ def make_voting_precinct_data(categories, district_data = {}, state=48, district
                     total = district_data[year][precinct_key][geoid][field]
                     total = total + float(value) * share
                     district_data[year][precinct_key][geoid][field] = total
-        
+    
+    # convert all the precinct values to int
+    for geoid in district_data[year][precinct_key].keys():
+        for field in district_data[year][precinct_key][geoid].keys():
+            field_to_int = int(district_data[year][precinct_key][geoid][field])
+            district_data[year][precinct_key][geoid][field] = field_to_int
+
     return district_data
 
 

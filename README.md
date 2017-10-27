@@ -1,4 +1,4 @@
-# Statistical-Districts
+# Statistical Districts
 A program for creating an interactive map of Census data for select Congressional Districts
 
 ##  Required Python Libraries:
@@ -34,5 +34,20 @@ A program for creating an interactive map of Census data for select Congressiona
   `python statserver.py`
 
 6. View results in your web browser by going to [localhost:8000](http://localhost:8000)
+
+## Open Source Licenses
+  * Bootstrap by [Twitter](https://github.com/twbs/bootstrap/blob/master/LICENSE)
+  * census by [DataMade](https://github.com/datamade/census/blob/master/LICENSE)
+  * Chart.js by [Nick Downie](https://github.com/chartjs/Chart.js/blob/master/LICENSE.md)
+  * code excerpts by [Google](http://www.apache.org/licenses/LICENSE-2.0)
+    * E.g. [Combining and Visualizing Multiple Data Sources](https://developers.google.com/maps/documentation/javascript/combining-data)
+  * geopandas by [GeoPandas developers](https://github.com/geopandas/geopandas/blob/master/LICENSE.txt)
+  * hamburgers by [Jonathan Suh](https://github.com/jonsuh/hamburgers/blob/master/LICENSE)
+  * matplotlib by [Matplot Lib Development Team et al.](https://github.com/matplotlib/matplotlib/tree/master/LICENSE)
+  * slideout.js by [Mango](https://github.com/Mango/slideout/blob/master/LICENSE)
+  * tornado by [The Tornado Authors](https://github.com/tornadoweb/tornado/blob/master/LICENSE)
+  * us by [Sunlight Labs](https://github.com/unitedstates/python-us/blob/master/LICENSE)
+
+## Disclaimer
 
 This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.
