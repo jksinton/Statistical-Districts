@@ -16,7 +16,7 @@
 var categories;
 var category;
 var category_type;
-var census_year = '2015';
+var census_year = '2016';
 var chartColors = {
 	red: 'rgb(255, 99, 132)',
 	green: 'rgb(75, 192, 192)',
@@ -33,6 +33,7 @@ var data = {};
 var distribution_chart_data;
 var distribution_geounits;
 var district_chart_data;
+var district_file;
 var district_layer;
 var district_min = Number.MAX_VALUE; 
 var district_max = -Number.MAX_VALUE;
@@ -41,12 +42,7 @@ var fields;
 var field_graph_data;
 var geounit_type;
 var geounit_chart_data;
-var geounit_files = {
-	//TODO read these from a settings file
-	'tract': '/static/geojson/TX07-tracts.geojson',
-	'bg': '/static/geojson/TX07-blockgroups.geojson',
-	'precinct': '/static/geojson/tx7-precincts.geojson'
-};
+var geounit_files = {};
 var geounit_labels = {
 	'tract': 'Tract',
 	'bg': 'Block Group',
@@ -56,7 +52,7 @@ var geounits_layer;
 var hover_geounits = [];
 var labels;
 var map;
-var property_name = 'GEOID';
+var property_name;
 var slideout;
 var years;
 
@@ -85,8 +81,8 @@ window.onload = loadGoogleMapsAPI;
  * returns nothing
  **/
 function init() {
-	// TODO: get settings from JSON file
-	
+	var latitude;
+	var longitude;
 	// enable slideout functionality	
 	slideout = new Slideout({
 		'panel': document.getElementById('panel'),
@@ -130,6 +126,7 @@ function init() {
 	category = 'Age';
 	category_type = 'Census';
 	geounit_type = 'bg';
+	property_name = 'GEOID';
 	
 	$.ajax({
   		url: '/static/data/district.json',
@@ -137,6 +134,11 @@ function init() {
   		dataType: 'json',
   		success: function (json) {
     		years = json['years'].sort();
+			geounit_files['bg'] = json['bg_geojson'];
+			geounit_files['precinct'] = json['precinct_geojson'];
+			district_file = json['district_geojson'];
+			latitude = json['lat'];
+			longitude = json['lng'];
   		}
 	});
 	
@@ -148,9 +150,7 @@ function init() {
     		data = json;
   		}
 	});	
-	
-	// TODO read this from the centroid of the district identified in statbuilder.py
-	var uluru = {lat: 29.8, lng: -95.6};
+	var uluru = {lat: latitude, lng: longitude};
     map = new google.maps.Map(document.getElementById('map'), {
     	zoom: 11,
     	center: uluru,
@@ -225,9 +225,7 @@ function load_maps() {
     	map.controls[google.maps.ControlPosition.TOP_CENTER].push(controls);
 		controls.style.opacity = 1;
 	});
-
-	// TODO: read this from a variable
-	district_layer.loadGeoJson("/static/geojson/district-TX07.geojson");
+	district_layer.loadGeoJson(district_file);
 	
 	geounits_layer.loadGeoJson(
 		geounit_files[geounit_type],
@@ -656,6 +654,7 @@ function init_district_chart() {
 	
 	for(var j = 0; j < years.length; j++) {
 		barchart_values = [];
+		console.log("Year:  " + years[j] );
 		for(var i = 0; i < fields.length; i++) {
 			barchart_values[i] = data[years[j]]['district'][fields[i]];
 		}
@@ -841,6 +840,11 @@ function load_top_geounits(selected_variable) {
 		console.log('Loading top precincts table'); 
 	}
 	
+	// set text for collapsible table
+	$('a#top-geounits-heading').text('Top ' + geounit_labels[geounit_type] + 's');
+
+	var header_row = "<thead><tr><th scope=\"col\">Index</th><th scope=\"col\">" + geounit_labels[geounit_type] + "</th><th scope=\"col\">" + labels[selected_variable] + "</th></tr></thead>";
+	var table = header_row;
 	var geounits = [];
 	var total = 0;
 	geounits_layer.forEach(function(feature){
@@ -856,14 +860,21 @@ function load_top_geounits(selected_variable) {
 
 	var top_third = parseInt(total / 3);
 	total = 0;
+	table += "<tbody>";
 	for( var i = 0; total < top_third; i++) {
 		var geoid = geounits[i][0];
 		var data_value = geounits[i][1];
-
+		var index = i + 1;
 		total = data_value + total;
 		
 		console.log(geoid.toString() + ": " + data_value.toString());
+		
+		table += "<tr><td>" + index.toString() + "</td><td>" + geoid.toString() + "</td><td>" + number_with_commas(data_value.toString()) + "</td></tr>";
 	}
+	table += "<tr><td></td><td>Total</td><td>" + number_with_commas(total) + "</td></tr>";
+	table += "</tbody>";
+
+	$('table#top-geounits-table').html(table);
 }
 
 

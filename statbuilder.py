@@ -2,7 +2,7 @@
 
 # This file is part of Statistical Districts.
 # 
-# Copyright (c) 2017, James Sinton
+# Copyright (c) 2018, James Sinton
 # All rights reserved.
 # 
 # Released under the BSD 3-Clause License
@@ -38,7 +38,7 @@ from statlib import *
 
 # GLOBAL CONSTANTS
 
-VERSION = '0.3.0'
+VERSION = '0.4.5'
 
 def read_settings(args):
     """Read the settings stored in settings.ini
@@ -52,7 +52,8 @@ def read_settings(args):
     # Default values
     state = 48
     district = 7
-    year = '2015'
+    leg_body = 'US-REP'
+    year = '2016'
     voting_precincts = None
     
     # Set values in settings.ini
@@ -68,6 +69,8 @@ def read_settings(args):
         state = args.state
     if args.district:
         district = args.district
+    if args.leg_body:
+        leg_body = args.leg_body
     if args.voting_precincts:
         voting_precincts = args.voting_precincts
 
@@ -75,10 +78,10 @@ def read_settings(args):
                 "census_api_key": census_api_key,
                 "state": state,
                 "district": district,
+                "leg_body": leg_body,
                 "year": year,
                 "voting_precincts": voting_precincts
             }
-    
 
     return settings_dict
 
@@ -96,6 +99,7 @@ def get_command_line_args():
     parser = argparse.ArgumentParser(description='Build stats for a given Congressional District')
     parser.add_argument('-s','--state', help='State of District, e.g., TX')
     parser.add_argument('-d','--district', help='District No., e.g., 7')
+    parser.add_argument('-l','--leg-body', help='Legislative Body, e.g., US-REP, US-SEN, STATE-REP, or STATE-SEN')
     parser.add_argument('-y','--year', help='Year of Census data to build')
     parser.add_argument('-p','--voting-precincts', help='Estimate stats for voting precincts using geospatial vector file, e.g., shapefile or GEOJSON')
     parser.add_argument('-v','--version',action='version', 
@@ -188,15 +192,13 @@ def extract_all(fn,dst="."):
     else:
         print "Please provide a tar archive file or zip file"
 
-# TODO
-# def find_tracts_in_district(state='48', district='07'):
 
-
-def find_blockgroups_in_district(state=48, district=7, year='2015', debug_is_on=False):
-    """Find the blockgroups that intersect with a Congressional District.
+def get_district_geojson_filename(state=48, district=7, leg_body='US-REP'):
+    """
     Args:
-        state: The state where the Congressional district is in
-        district: Congressional district
+        state: 
+        district: 
+        leg_body:
     Returns:
         Nothing
     Raises:
@@ -206,68 +208,245 @@ def find_blockgroups_in_district(state=48, district=7, year='2015', debug_is_on=
     district = "{0:0>2}".format(district)
     
     state_abbr = str(states.mapping('fips', 'abbr')[state])
-    district_abbr = state_abbr + district
+    district_abbr = leg_body + '-' + state_abbr + district
+    geojson_path = 'static/geojson/'
+
+    district_file = geojson_path +  district_abbr + '.geojson'
+
+    return district_file
+
+
+def get_voting_precincts_geojson_filename(state=48, district=7, leg_body='US-REP'):
+    """
+    Args:
+        state: 
+        district: 
+        leg_body:
+    Returns:
+        Nothing
+    Raises:
+        Nothing
+    """
+    state = "{0:0>2}".format(state)
+    district = "{0:0>2}".format(district)
+    
+    state_abbr = str(states.mapping('fips', 'abbr')[state])
+    vps_abbr = leg_body + '-' + state_abbr + district + '-voting-precincts'
+    geojson_path = 'static/geojson/'
+
+    vps_file = geojson_path +  vps_abbr + '.geojson'
+
+    return vps_file
+
+
+def get_state_blockgroups_geojson_filename(state=48, district=7, leg_body='US-REP'):
+    """
+    Args:
+        state: 
+        district: 
+        leg_body:
+    Returns:
+        Nothing
+    Raises:
+        Nothing
+    """
+    state = "{0:0>2}".format(state)
+    district = "{0:0>2}".format(district)
+    
+    state_abbr = str(states.mapping('fips', 'abbr')[state])
+    geojson_path = 'static/geojson/'
+
+    blockgroups_file = geojson_path + state_abbr + '-blockgroups.geojson'
+
+    return blockgroups_file
+
+
+def get_bgs_in_district_geojson_filename(state=48, district=7, leg_body='US-REP'):
+    """
+    Args:
+        state: 
+        district: 
+        leg_body:
+    Returns:
+        Nothing
+    Raises:
+        Nothing
+    """
+    state = "{0:0>2}".format(state)
+    district = "{0:0>2}".format(district)
+    
+    state_abbr = str(states.mapping('fips', 'abbr')[state])
+    district_abbr = leg_body + '-' + state_abbr + district
     geojson_path = 'static/geojson/'
     data_path = 'static/data/'
-    bgs_output = district_abbr + '-blockgroups'
-    bgs_outputGeoJSON = geojson_path + bgs_output + '.geojson'
-    bgs_outputJSON = data_path + bgs_output + '.json'
+    shapfile_path = None
+    bgs_in_district_fn = district_abbr + '-blockgroups'
+    bgs_in_district_GeoJSON = geojson_path + bgs_in_district_fn + '.geojson'
 
-    # see if geojson files is available for blockgroups and district
-    district_file = geojson_path + 'district-' + district_abbr + '.geojson'
+    return bgs_in_district_GeoJSON
 
-    blockgroups_file = geojson_path + state_abbr + '-blockgroups.geojson' 
-    
-    if not os.path.isfile(bgs_outputGeoJSON):
-        if not os.path.isfile(district_file):
-            print "Downloading district file"
-            # TODO download the most recent districts file
-            # 'http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_cd115_500k.zip'
-            district_url = 'http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_cd115_500k.zip'
-            #district_url = 'ftp://ftpgis1.tlc.state.tx.us/DistrictViewer/Congress/PlanC235.zip'
-            district_dl_file = geojson_path + 'district.zip'
-            download_file(district_url, district_dl_file)
-            extract_all(district_dl_file, geojson_path)
-            districts_shapefile = glob(geojson_path + '*shp')[0]
+
+def get_bgs_in_district_json_filename(state=48, district=7, leg_body='US-REP'):
+    """
+    Args:
+        state: 
+        district: 
+        leg_body:
+    Returns:
+        Nothing
+    Raises:
+        Nothing
+    """
+    state = "{0:0>2}".format(state)
+    district = "{0:0>2}".format(district)
+    state_abbr = str(states.mapping('fips', 'abbr')[state])
+    district_abbr = leg_body + '-' + state_abbr + district
+    data_path = 'static/data/'
+    bgs_in_district_fn = district_abbr + '-blockgroups'
+   
+    bgs_in_district_JSON = data_path + bgs_in_district_fn + '.json'
+
+    return bgs_in_district_JSON
+   
+
+def get_district_file(state=48, district=7, leg_body='US-REP'):
+    """
+    Args:
+        state: 
+        district: 
+        leg_body:
+    Returns:
+        Nothing
+    Raises:
+        Nothing
+    """
+
+    district_file = get_district_geojson_filename(
+            state=state, district=district, leg_body=leg_body)
             
-            print "Converting district file to GEOJSON"
-            districts = gpd.read_file(districts_shapefile)
-            # used for census file
+    state = "{0:0>2}".format(state)
+    district = "{0:0>2}".format(district)
+    
+    if not os.path.isfile(district_file):
+        print "Downloading district file"
+        # TODO download the most recent districts file
+        # currently it downloads the 2016 district
+        # 'http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_cd115_500k.zip'
+        
+        if leg_body == 'US-REP':
+            district_url = 'http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_cd115_500k.zip'
+        if leg_body == 'STATE-REP':
+            district_url = 'ftp://ftpgis1.tlc.state.tx.us/DistrictViewer/House/PlanH358.zip'
+        if leg_body == 'STATE-SEN':
+            district_url = 'ftp://ftpgis1.tlc.state.tx.us/DistrictViewer/Senate/PlanS172.zip'
+        
+        district_dl_file = geojson_path + 'district.zip'
+        download_file(district_url, district_dl_file)
+        extract_all(district_dl_file, geojson_path)
+        
+        if len(glob(geojson_path + '*shp')) > 0:
+            districts_shapefile = glob(geojson_path + '*shp')[0]
+        else:
+            for p in glob(geojson_path + '*'):
+                if os.path.isdir(p):
+                    shapefile_path = p
+                    districts_shapefile = glob(p + '/*shp')[0]
+        
+        print "Converting district file to GEOJSON"
+        districts = gpd.read_file(districts_shapefile)
+        
+        if leg_body == 'US-REP':
             d_index = districts[districts.GEOID == (state + district) ].index
+        if leg_body == 'STATE-REP' or leg_body == 'STATE-SEN':
+            d_index = districts[districts.District == int(district) ].index
 
-            #d_index = districts[districts.District == int(district) ].index
-            district_shape = districts.loc[d_index]
-            district_shape = district_shape.to_crs({'init': u'epsg:4326'})
-            district_shape.to_file(district_file, driver='GeoJSON')
+        district_shape = districts.loc[d_index]
+        district_shape = district_shape.to_crs({'init': u'epsg:4326'})
+        district_shape.to_file(district_file, driver='GeoJSON')
 
-            # cleanup geojson dir
+        # cleanup geojson dir
+        if len(glob(geojson_path + '*shp')) > 0:
             shapefile_prefix = glob(geojson_path + '*shp')[0].split(
                     geojson_path)[1].split('.')[0]
             shapefiles = glob(geojson_path + shapefile_prefix + '*')
             for f in shapefiles:
                 os.remove(f)
-            os.remove(district_dl_file)
-
-        if not os.path.isfile(blockgroups_file):
-            print "Downloading blockgroups"
-            bgs_url = 'ftp://ftp2.census.gov/geo/tiger/TIGER{year}/BG/tl_{year}_{state}_bg.zip'.format(year=year, state=state)
-            bgs_dl_file = geojson_path + 'bgs.zip'
-            download_file(bgs_url, bgs_dl_file)
-            extract_all(bgs_dl_file, geojson_path)
-            bgs_shapefile = glob(geojson_path + '*shp')[0]
-
-            print "Converting blockgroups file to GEOJSON"
-            bgs = gpd.read_file(bgs_shapefile)
-            bgs = bgs.to_crs({'init': u'epsg:4326'})
-            bgs.to_file(blockgroups_file, driver='GeoJSON')
-
-            # cleanup geojson dir
-            shapefile_prefix = glob(geojson_path + '*shp')[0].split(
-                    geojson_path)[1].split('.')[0]
-            shapefiles = glob(geojson_path + shapefile_prefix + '*')
+        else:
+            shapefile_prefix = glob(shapefile_path + '/*shp')[0].split(
+                    shapefile_path)[1].split('.')[0]
+            shapefiles = glob(shapefile_path + shapefile_prefix + '*')
             for f in shapefiles:
                 os.remove(f)
-            os.remove(bgs_dl_file)
+            os.rmdir(shapefile_path)
+        os.remove(district_dl_file)
+
+
+def get_state_blockgroups_file(state=48, district=7, leg_body='US-REP', year='2015'):
+    """
+    Args:
+        state: 
+        district: 
+        leg_body:
+    Returns:
+        Nothing
+    Raises:
+        Nothing
+    """
+
+    blockgroups_file = get_state_blockgroups_geojson_filename(state=state, district=district, leg_body=leg_body)
+            
+    state = "{0:0>2}".format(state)
+    district = "{0:0>2}".format(district)
+    
+    print blockgroups_file
+
+    if not os.path.isfile(blockgroups_file):
+        print "Downloading blockgroups"
+        bgs_url = 'ftp://ftp2.census.gov/geo/tiger/TIGER{year}/BG/tl_{year}_{state}_bg.zip'.format(year=year, state=state)
+        bgs_dl_file = geojson_path + 'bgs.zip'
+        download_file(bgs_url, bgs_dl_file)
+        extract_all(bgs_dl_file, geojson_path)
+        bgs_shapefile = glob(geojson_path + '*shp')[0]
+
+        print "Converting blockgroups file to GEOJSON"
+        bgs = gpd.read_file(bgs_shapefile)
+        bgs = bgs.to_crs({'init': u'epsg:4326'})
+        bgs.to_file(blockgroups_file, driver='GeoJSON')
+
+        # cleanup geojson dir
+        shapefile_prefix = glob(geojson_path + '*shp')[0].split(
+                geojson_path)[1].split('.')[0]
+        shapefiles = glob(geojson_path + shapefile_prefix + '*')
+        for f in shapefiles:
+            os.remove(f)
+        os.remove(bgs_dl_file)
+
+# TODO
+# def find_tracts_in_district(state='48', district='07'):
+
+
+def find_blockgroups_in_district(state=48, district=7, leg_body='US-REP', year='2015', debug_is_on=False):
+    """Find the blockgroups that intersect with a legislative district, e.g., US Congressional District.
+    Args:
+        state: The state where the Congressional district is in
+        district: Congressional district
+    Returns:
+        Nothing
+    Raises:
+        Nothing
+    """
+    shapfile_path = None
+    bgs_in_district_GeoJSON = get_bgs_in_district_geojson_filename(state=state, district=district, leg_body=leg_body)
+    bgs_in_district_JSON = get_bgs_in_district_json_filename(state=state, district=district, leg_body=leg_body)
+    district_file = get_district_geojson_filename(state=state, district=district, leg_body=leg_body)
+    blockgroups_file = get_state_blockgroups_geojson_filename(state=state, district=district, leg_body=leg_body)
+    
+    
+    if not os.path.isfile(bgs_in_district_GeoJSON):
+        get_district_file(state=state, district=district, leg_body=leg_body)
+    
+        get_state_blockgroups_file(
+            state=state, district=district, leg_body=leg_body, year=year)
         
         print "Finding blockgroups in district"
         district = gpd.read_file(district_file)
@@ -317,35 +496,134 @@ def find_blockgroups_in_district(state=48, district=7, year='2015', debug_is_on=
 
         # See issue #367 https://github.com/geopandas/geopandas/issues/367
         try: 
-            os.remove(bgs_outputGeoJSON)
+            os.remove(bgs_in_district_GeoJSON)
         except OSError:
             pass
-        bgs_in_district.to_file(bgs_outputGeoJSON, driver='GeoJSON')
+        bgs_in_district.to_file(bgs_in_district_GeoJSON, driver='GeoJSON')
         
         # Create json file of geo units
-        bgs_in_district[['BLKGRPCE','COUNTYFP', 'STATEFP', 'TRACTCE', 'GEOID']].to_json(bgs_outputJSON)
+        bgs_in_district[['BLKGRPCE','COUNTYFP', 'STATEFP', 'TRACTCE', 'GEOID']].to_json(bgs_in_district_JSON)
         
         if debug_is_on:
             plt.figure(figsize=(400, 400))
             district_plot=district.plot(color='blue', alpha=0.5)
             bgs_in_district.plot(ax=district_plot, color='green',alpha=0.5)
-            plt.savefig(bgs_output,dpi=600)
+            plt.savefig(bgs_in_district_fn,dpi=600)
             plt.close()
 
             plt.figure(figsize=(400, 400))
             district_plot=district.plot(color='blue', alpha=0.5)
             block_groups[bgs_touching_district_bool].plot(ax=district_plot, color='green',alpha=0.5)
-            plt.savefig(bgs_output + '-touching',dpi=600)
+            plt.savefig(bgs_in_district_fn + '-touching',dpi=600)
             plt.close()
 
             plt.figure(figsize=(400, 400))
             district_plot=district.plot(color='blue', alpha=0.5)
             bgs_to_remove.plot(ax=district_plot, color='green',alpha=0.5)
-            plt.savefig(bgs_output + '-threshold-filter',dpi=600)
+            plt.savefig(bgs_in_district_fn + '-threshold-filter',dpi=600)
             plt.close()
         
 
-def get_blockgroup_census_data(api, fields, census_data = {}, state=48, district=7, year='2015'):
+def find_voting_precincts_in_district(voting_precincts_file, state=48, district=7, leg_body='US-REP'):
+    """
+    Args:
+        state:
+        district:
+        leg_body:
+    Returns:
+        Nothing
+    Raises:
+        Nothing
+    """
+    district_file = get_district_geojson_filename(
+            state=state, district=district, leg_body=leg_body)
+    
+    vps_in_district_GeoJSON  = get_voting_precincts_geojson_filename(
+            state=state, district=district, leg_body=leg_body)
+    
+    get_district_file(state=state, district=district, leg_body=leg_body)
+    
+    print "Finding voting precincts in district"
+    district_boundary = gpd.read_file(district_file)
+    voting_precincts = gpd.read_file(voting_precincts_file)
+    
+    print "Finding voting precincts that touch the district boundary"
+    vps_touching_district_bool = voting_precincts.touches(district_boundary.geometry[0])
+        
+    print "Finding voting precincts that intersect the district boundary"
+    vps_intersecting_district_bool = voting_precincts.intersects(district_boundary.geometry[0])
+        
+    print "Filtering the voting precincts"
+    for index in vps_touching_district_bool[vps_touching_district_bool==True].index:
+        vps_intersecting_district_bool.loc[index] = False
+
+    vps_in_district = voting_precincts[vps_intersecting_district_bool]
+ 
+    print "Finding blockgroups to filter based on threshold"
+    intersections = vps_in_district.intersection(district_boundary.geometry[0])
+
+    areas_of_intersections = intersections.area
+    indx_out = []
+    for vp_index, vp in vps_in_district.iterrows():
+        area_of_intersection = areas_of_intersections[vp_index]
+        vp_area = GeoSeries(vp.geometry).area[0]
+
+        share_of_intersection = area_of_intersection / vp_area
+            
+        if share_of_intersection < 0.10:
+            indx_out.append(vp_index)
+
+        #print "\nBlock Group: ", bg.GEOID
+        #print "Area: ", str(bg_area)
+        #print "Share of Intersection: ", str(share_of_intersection)
+        
+    vps_to_remove_bool = pd.Series([False]*len(voting_precincts))
+
+    for index in indx_out:
+        vps_to_remove_bool.loc[index] = True
+
+    vps_to_remove = voting_precincts[vps_to_remove_bool]
+
+    for index in vps_to_remove_bool[vps_to_remove_bool==True].index:
+        vps_intersecting_district_bool.loc[index] = False
+
+    vps_in_district = voting_precincts[vps_intersecting_district_bool]
+
+    # See issue #367 https://github.com/geopandas/geopandas/issues/367
+    try: 
+        os.remove(vps_in_district_GeoJSON)
+    except OSError:
+        pass
+    vps_in_district.to_file(vps_in_district_GeoJSON, driver='GeoJSON')
+    
+    vps_in_district.sort_values(by=['PRECINCT'])[['PRECINCT']].to_csv("vps.csv", index=False)
+
+
+def get_district_centroid(state=48, district=7, leg_body='US-REP', year='2015'):
+    """
+    Args:
+        state: 
+        district: 
+        leg_body:
+    Returns:
+        Nothing
+    Raises:
+        Nothing
+    """
+    district_file = get_district_geojson_filename(
+            state=state, district=district, leg_body=leg_body)
+    
+    get_district_file(state=state, district=district, leg_body=leg_body)
+
+    district = gpd.read_file(district_file)
+
+    longitude = district.geometry.centroid[0].x
+    latitude = district.geometry.centroid[0].y
+
+    return (longitude, latitude)
+
+
+def get_blockgroup_census_data(api, fields, census_data = {}, state=48, district=7, leg_body='US-REP', year='2015'):
     """Retrieve the census data for the block groups in a Congressional District
     Args:
         api: Census api key
@@ -366,35 +644,34 @@ def get_blockgroup_census_data(api, fields, census_data = {}, state=48, district
         if blockgroup_key not in census_data[year].keys():
             census_data[year][blockgroup_key] = { }
     # TODO make dynamic to state and district
-    # also read a json file
 
     state = "{0:0>2}".format(state)
     district = "{0:0>2}".format(district)
     
     state_abbr = str(states.mapping('fips', 'abbr')[state])
-    district_abbr = state_abbr + district
+    district_abbr = leg_body + '-' + state_abbr + district
     data_path = 'static/data/'
-    bgs_in_district_file = data_path + district_abbr + '-blockgroups.json'
+    bgs_in_district_JSON = data_path + district_abbr + '-blockgroups.json'
 
-    bgs_in_district = pd.read_json(bgs_in_district_file)
+    bgs_in_district = pd.read_json(bgs_in_district_JSON)
     
     # Setup Census query
-    census_query = Census(api, year=year)
+    census_query = Census(api, year=int(year))
     num_of_bgs = len(bgs_in_district)
     i = 0.0
-    for bg_index, bg_row in bgs_in_district.iterrows():
+    for bg_index, bg in bgs_in_district.iterrows():
         # print percent complete
         status = r"%10d  [%3.2f%%]" % (i, i * 100. / num_of_bgs)
         status = status + chr(8)*(len(status)+1)
         print status,
         bg_stats = census_query.acs5.state_county_blockgroup(
                         fields=fields, 
-                        state_fips=bg_row['STATEFP'], 
-                        county_fips=bg_row['COUNTYFP'], 
-                        blockgroup=bg_row['BLKGRPCE'],
-                        tract=bg_row['TRACTCE']
+                        state_fips=bg['STATEFP'], 
+                        county_fips=bg['COUNTYFP'], 
+                        blockgroup=bg['BLKGRPCE'],
+                        tract=bg['TRACTCE']
                     )[0]
-        geoid = str(bg_row['GEOID'])
+        geoid = str(bg['GEOID'])
         if geoid in census_data[year][blockgroup_key].keys():
             census_data[year][blockgroup_key][geoid].update(bg_stats)
         else:
@@ -404,17 +681,17 @@ def get_blockgroup_census_data(api, fields, census_data = {}, state=48, district
     return census_data
 
 
-def get_district_census_data(api, fields, census_data = {}, state=48, district=7, year='2015'):
-    """Retrieve the census data for the block groups in a Congressional District
+def get_district_census_data(api, fields, census_data = {}, state=48, district=7, leg_body='US-REP', year='2015'):
+    """Retrieve the census data for the entire district
     Args:
         api: Census api key
         fields: the fields to query from api.census.gov; 
-            See e.g., https://api.census.gov/data/2015/acs5/variables.html
+            See e.g., https://api.census.gov/data/2015/acs/acs5/variables.html
         year: The year the census data was collected
         state: The state where the Congressional district is in
         district: The Congressional district
     Returns:
-        census_data: a list of dictionaries storing the blockgroup results
+        census_data: a list of dictionaries storing the census data
     Raises
         Nothing
     """
@@ -425,16 +702,17 @@ def get_district_census_data(api, fields, census_data = {}, state=48, district=7
         if district_key not in census_data[year].keys():
             census_data[year][district_key] = { }
     
-    # Setup Census query
-    census_query = Census(api, year=year)
-    district_stats = census_query.acs5.get(
-                    fields,
-                    {   'for': 'congressional district:' + str(district),
-                        'in': 'state:' + str(state)
-                    }
-                )[0]
-    census_data[year][district_key].update(district_stats)
-
+    if leg_body == 'US-REP':
+        # Setup Census query
+        census_query = Census(api, year=year)
+        district_stats = census_query.acs5.get(
+                        fields,
+                        {   'for': 'congressional district:' + str(district),
+                            'in': 'state:' + str(state)
+                        }
+                    )[0]
+        census_data[year][district_key].update(district_stats)
+    
     return census_data
 
 
@@ -504,7 +782,8 @@ def load_district_data(district_data_file='static/data/district-data.json',
 
 
 def make_pid_and_class_data(census_data_in_district, pid_classes, 
-        census_classes, pid_total_field, district_data={}, year='2015', geo_key='bg' ):
+        census_classes, pid_total_field, category= {}, district_data={}, 
+        state=48, district=7, leg_body='US-REP', year='2015', geo_key='bg' ):
     """Calculate the PID classes and populate Census classes
     Args:
         census_data_in_district:
@@ -553,35 +832,103 @@ def make_pid_and_class_data(census_data_in_district, pid_classes,
 
                 # Census Class
                 district_data[year][geo_key][geoid][census_class] = census_class_total
+
     # geokey is 'district'
-    else:
-        pid_total = 0.0
-        # PID Total and classes
-        for pid_class, pid_census_classes in pid_classes.iteritems():
-            pid_class_total = 0.0
-            for pid_census_field in pid_census_classes['fields']:
-                # Add up the total PID for this class, e.g., Younger Millennial (18-25) 
-                pid_class_value = float(census_data_in_district[year][geo_key][pid_census_field]) * float(pid_census_classes['pid'])
-                pid_class_total =  pid_class_total + pid_class_value
+    if geo_key == 'district':
+        # TODO add support for non-congressional districts
+        if leg_body == 'US-REP':
+            pid_total = 0.0
+            # PID Total and classes
+            for pid_class, pid_census_classes in pid_classes.iteritems():
+                pid_class_total = 0.0
+                for pid_census_field in pid_census_classes['fields']:
+                    # Add up the total PID for this class, e.g., Younger Millennial (18-25) 
+                    pid_class_value = float(census_data_in_district[year][geo_key][pid_census_field]) * float(pid_census_classes['pid'])
+                    pid_class_total =  pid_class_total + pid_class_value
 
-                # Add up the total PID by Category, e.g., Age
-                pid_total = pid_total + pid_class_value
-            # PID Class
-            district_data[year][geo_key][pid_class] = int(pid_class_total)
-        # PID Total
-        district_data[year][geo_key][pid_total_field] = int(pid_total)
+                    # Add up the total PID by Category, e.g., Age
+                    pid_total = pid_total + pid_class_value
+                # PID Class
+                district_data[year][geo_key][pid_class] = int(pid_class_total)
+            # PID Total
+            district_data[year][geo_key][pid_total_field] = int(pid_total)
         
-        # Census classes
-        for census_class, census_class_row in census_classes.iteritems():
-            # Add up the total of this census_class, e.g., (18-29) or 30s
-            census_class_total = 0
+            # Census classes
+            for census_class, census_class_row in census_classes.iteritems():
+                # Add up the total of this census_class, e.g., (18-29) or 30s
+                census_class_total = 0
 
-            for census_subclass in census_class_row['fields']:
-                census_subclass_value = int(census_data_in_district[year][geo_key][census_subclass])
-                census_class_total =  census_class_total + census_subclass_value
+                for census_subclass in census_class_row['fields']:
+                    census_subclass_value = int(census_data_in_district[year][geo_key][census_subclass])
+                    census_class_total =  census_class_total + census_subclass_value
 
-            # Census Class
-            district_data[year][geo_key][census_class] = census_class_total
+                # Census Class
+                district_data[year][geo_key][census_class] = census_class_total
+
+    return district_data
+
+
+def make_district_data_for_state_leg(categories={}, district_data={}, 
+        state=48, district=7, leg_body='US-REP', year='2015'):
+    """
+    Args:
+        ________
+    Returns: 
+        district_data:
+    Raises:
+        Nothing (yet)
+    """
+
+    bg_key = 'bg'
+    district_key = 'district'
+    
+    state = "{0:0>2}".format(state)
+    district = "{0:0>2}".format(district)
+    
+    state_abbr = str(states.mapping('fips', 'abbr')[state])
+    district_abbr = leg_body + '-' + state_abbr + district
+    geojson_path = 'static/geojson/'
+    
+    if os.path.isdir(geojson_path) == False:
+        print "Making path {path}".format(path=geojson_path)
+        mkdir_p(geojson_path)
+
+    blockgroups_file = geojson_path + district_abbr + '-blockgroups.geojson' 
+    district_file = geojson_path +  district_abbr + '.geojson'
+    
+    print "Estimating districtwide statistics for the district"
+    blockgroups = gpd.read_file(blockgroups_file)
+    district_boundary = gpd.read_file(district_file)
+    
+    if district_key not in district_data[year].keys():
+        district_data[year][district_key] = {}
+
+    for cat_index, category in categories.iteritems(): 
+        for cat_typ_index, cat_type in category.iteritems():
+            for field in cat_type['fields']:
+                if field not in 'median_income':
+                    district_data[year][district_key][field] = 0.0
+
+    intersections = blockgroups.geometry.intersection(district_boundary.geometry[0])
+    areas = intersections.area
+    for bg_index, bg in blockgroups.iterrows():
+        interArea = areas[bg_index]
+        bgArea = GeoSeries(bg.geometry).area[0]
+
+        share = (interArea/bgArea)
+        for field, value in district_data[year][bg_key][bg.GEOID].iteritems():
+            if 'median_income' not in field:
+                if value is None:
+                    value = 0.0
+                total = district_data[year][district_key][field]
+                total = total + float(value) * share
+                district_data[year][district_key][field] = total
+
+    # convert all the district values to int
+    for field in district_data[year][district_key].keys():
+        field_to_int = int(district_data[year][district_key][field])
+        district_data[year][district_key][field] = field_to_int
+        # TODO add support for state legislative bodies
 
     return district_data
 
@@ -589,7 +936,7 @@ def make_pid_and_class_data(census_data_in_district, pid_classes,
 def get_census_data(api, category, fields,
         district_config_file = 'static/data/district.json',
         census_data_file='static/data/district-census-data.json', 
-        state=48, district=7, year='2015'):
+        state=48, district=7, leg_body='US-REP', year='2015'):
     """Store the raw census data in a json file and return the census data
     Args:
         
@@ -625,6 +972,7 @@ def get_census_data(api, category, fields,
                     fields=fields, 
                     state=state, 
                     district=district, 
+                    leg_body=leg_body, 
                     year=year
                 )
             # get the data for the entire district
@@ -634,6 +982,7 @@ def get_census_data(api, category, fields,
                     fields=fields, 
                     state=state, 
                     district=district, 
+                    leg_body=leg_body, 
                     year=year
                 )
             # TODO add get_tract_census_data()
@@ -655,6 +1004,7 @@ def get_census_data(api, category, fields,
             fields=fields, 
             state=state, 
             district=district, 
+            leg_body=leg_body, 
             year=year)
     
     census_data = get_district_census_data(
@@ -663,6 +1013,7 @@ def get_census_data(api, category, fields,
             fields=fields, 
             state=state, 
             district=district, 
+            leg_body=leg_body, 
             year=year
         )
 
@@ -673,6 +1024,24 @@ def get_census_data(api, category, fields,
     district_config[year] = [category]
     district_config['years'] = [year]
     
+    # TODO add centroid, district geojson filename, block groups geojson filename
+    longitude, latitude = get_district_centroid(
+            state=state, district=district, leg_body=leg_body, year=year)
+    
+    district_config['lat']=latitude
+    district_config['lng']=longitude   
+    
+    district_GeoJSON = get_district_geojson_filename(
+            state=state, district=district, leg_body=leg_body)
+    bgs_in_district_GeoJSON = get_bgs_in_district_geojson_filename(
+            state=state, district=district, leg_body=leg_body)
+    vps_in_district_GeoJSON  = get_voting_precincts_geojson_filename(
+            state=state, district=district, leg_body=leg_body)
+       
+    district_config['district_geojson'] = '/' + district_GeoJSON
+    district_config['bg_geojson'] = '/' + bgs_in_district_GeoJSON
+    district_config['precinct_geojson'] = '/' + vps_in_district_GeoJSON
+
     # save census data to file
     to_json(census_data, census_data_file)
     to_json(district_config, district_config_file)
@@ -681,7 +1050,7 @@ def get_census_data(api, category, fields,
 
 
 def make_age_data(api, district_data = {}, categories = {'Age': {} },
-        state=48, district=7, year='2015'):
+        state=48, district=7, leg_body='US-REP', year='2015'):
     """Make the age Party Identification (PID) data and census data for a district
     Args: 
         api: 
@@ -749,7 +1118,7 @@ def make_age_data(api, district_data = {}, categories = {'Age': {} },
     census_fields, census_labels = get_census_fields_by_table(table=age_table, 
             year=year)
     census_data = get_census_data(api=api, category=category, fields=census_fields, 
-        state=state, district=district, year=year)
+        state=state, district=district, leg_body=leg_body, year=year)
     
     # create fields and labels for Party Identification classes
     # used in web-based dashboard
@@ -798,9 +1167,10 @@ def make_age_data(api, district_data = {}, categories = {'Age': {} },
             census_classes=age_classes,
             pid_total_field=pid_total_field,
             district_data=district_data,
+            district=district,
+            leg_body=leg_body,
             year=year
         )
-    
     # make the party identification data and data for the census classes
     # for the district
     district_data = make_pid_and_class_data( 
@@ -809,6 +1179,9 @@ def make_age_data(api, district_data = {}, categories = {'Age': {} },
             census_classes=age_classes,
             pid_total_field=pid_total_field,
             district_data=district_data,
+            category=categories[category],
+            district=district,
+            leg_body=leg_body,
             year=year,
             geo_key=district_key
         )
@@ -828,22 +1201,23 @@ def make_age_data(api, district_data = {}, categories = {'Age': {} },
         # Total Population
         district_data[year][geo_key][geoid][total_field] = census_data_row[total_census_field]
     
-    # calculate the district stats
-    geo_key = district_key
-    for census_field in under_18_classes['fields']:
-        under_18 = under_18 + int(census_data[year][geo_key][census_field])
-    # (over 18) = total - (under 18)
-    over_18 = int(census_data[year][geo_key][total_census_field]) - under_18
-    district_data[year][geo_key][over_18_field] = over_18
-        
-    # Total Population
-    district_data[year][geo_key][total_field] = census_data[year][geo_key][total_census_field]
+    if leg_body == 'US-REP':
+        # calculate the district stats
+        geo_key = district_key
+        for census_field in under_18_classes['fields']:
+            under_18 = under_18 + int(census_data[year][geo_key][census_field])
+        # (over 18) = total - (under 18)
+        over_18 = int(census_data[year][geo_key][total_census_field]) - under_18
+        district_data[year][geo_key][over_18_field] = over_18
+            
+        # Total Population
+        district_data[year][geo_key][total_field] = census_data[year][geo_key][total_census_field]
 
     return categories, district_data
 
 
 def make_income_data(api, district_data = {}, categories = {'Income': { }}, 
-        state=48, district=7, year='2015'):
+        state=48, district=7, leg_body='US-REP', year='2015'):
     """Make the income data for a district
     Args: 
         api: 
@@ -914,7 +1288,7 @@ def make_income_data(api, district_data = {}, categories = {'Income': { }},
             year=year)
     census_fields.append(median_household_inc_field)
     census_data = get_census_data(api=api, category=category, fields=census_fields,
-        state=state, district=district, year=year)
+        state=state, district=district, leg_body=leg_body, year=year)
 
     # create fields and labels for Party Identification classes
     # used in web-based dashboard
@@ -973,6 +1347,8 @@ def make_income_data(api, district_data = {}, categories = {'Income': { }},
             census_classes=income_classes,
             pid_total_field=pid_total_field,
             district_data=district_data,
+            district=district,
+            leg_body=leg_body,
             year=year
             # TODO
             # add a list of singles (eg, total or median) to retrieve
@@ -986,6 +1362,8 @@ def make_income_data(api, district_data = {}, categories = {'Income': { }},
             census_classes=income_classes,
             pid_total_field=pid_total_field,
             district_data=district_data,
+            district=district,
+            leg_body=leg_body,
             year=year,
             geo_key=district_key
         )
@@ -1000,18 +1378,19 @@ def make_income_data(api, district_data = {}, categories = {'Income': { }},
         district_data[year][geo_key][geoid][total_field] = census_data_row[total_household_inc_field]
     
     # calculate the district stats
-    geo_key = district_key
-    # Median Household Income
-    district_data[year][geo_key][median_field] = census_data[year][geo_key][median_household_inc_field]
-        
-    # Total Households
-    district_data[year][geo_key][total_field] = census_data[year][geo_key][total_household_inc_field]
+    if leg_body == 'US-REP': 
+        geo_key = district_key
+        # Median Household Income
+        district_data[year][geo_key][median_field] = census_data[year][geo_key][median_household_inc_field]
+            
+        # Total Households
+        district_data[year][geo_key][total_field] = census_data[year][geo_key][total_household_inc_field]
 
     return categories, district_data
     
 
 def make_race_data( api,  district_data = {}, categories = {'Race': { }}, 
-        state=48, district=7, year='2015' ):
+        state=48, district=7, leg_body='US-REP', year='2015' ):
     """Make the race data for a district
     Args: 
         api: 
@@ -1077,7 +1456,7 @@ def make_race_data( api,  district_data = {}, categories = {'Race': { }},
     census_fields.extend(hispanic_fields)
 
     census_data = get_census_data(api=api, category=category, fields=census_fields,
-        state=state, district=district, year=year)
+        state=state, district=district, leg_body=leg_body, year=year)
 
     # create fields and labels for Party Identification classes
     # used in web-based dashboard
@@ -1122,6 +1501,8 @@ def make_race_data( api,  district_data = {}, categories = {'Race': { }},
             census_classes=race_classes,
             pid_total_field=pid_total_field,
             district_data=district_data,
+            district=district,
+            leg_body=leg_body,
             year=year
             # TODO
             # add a list of singles (eg, total or median) to retrieve
@@ -1135,6 +1516,8 @@ def make_race_data( api,  district_data = {}, categories = {'Race': { }},
             census_classes=race_classes,
             pid_total_field=pid_total_field,
             district_data=district_data,
+            district=district,
+            leg_body=leg_body,
             year=year,
             geo_key=district_key
         )
@@ -1142,17 +1525,17 @@ def make_race_data( api,  district_data = {}, categories = {'Race': { }},
     # get the total population from the race table
     geo_key=blockgroup_key
     for geoid, census_data_row in census_data[year][geo_key].iteritems():
-        # 
         district_data[year][geo_key][geoid][total_field] = census_data_row[race_total_field]
-    
-    geo_key=district_key
-    district_data[year][geo_key][total_field] = census_data[year][geo_key][race_total_field]
+
+    if leg_body == 'US-REP': 
+        geo_key=district_key
+        district_data[year][geo_key][total_field] = census_data[year][geo_key][race_total_field]
 
     return categories, district_data
 
 
 def make_edu_data( api,  district_data = {}, categories = {'Education': { }}, 
-        state=48, district=7, year='2015' ):
+        state=48, district=7, leg_body='US-REP', year='2015' ):
     """Make the education data for a district
     Args: 
         api: 
@@ -1215,7 +1598,7 @@ def make_edu_data( api,  district_data = {}, categories = {'Education': { }},
     census_fields.extend(edu_fields)
     
     census_data = get_census_data(api=api, category=category, fields=census_fields,
-        state=state, district=district, year=year)
+        state=state, district=district, leg_body=leg_body, year=year)
 
     # create fields and labels for Party Identification classes
     # used in web-based dashboard
@@ -1260,6 +1643,8 @@ def make_edu_data( api,  district_data = {}, categories = {'Education': { }},
             census_classes=edu_classes,
             pid_total_field=pid_total_field,
             district_data=district_data,
+            district=district,
+            leg_body=leg_body,
             year=year
             # TODO
             # add a list of singles (eg, total or median) to retrieve
@@ -1273,6 +1658,8 @@ def make_edu_data( api,  district_data = {}, categories = {'Education': { }},
             census_classes=edu_classes,
             pid_total_field=pid_total_field,
             district_data=district_data,
+            district=district,
+            leg_body=leg_body,
             year=year,
             geo_key=district_key
         )
@@ -1283,13 +1670,14 @@ def make_edu_data( api,  district_data = {}, categories = {'Education': { }},
         # Total Population
         district_data[year][geo_key][geoid][total_field] = census_data_row[edu_total_field]
     
-    geo_key=district_key
-    district_data[year][geo_key][total_field] = census_data[year][geo_key][edu_total_field]
+    if leg_body == 'US-REP': 
+        geo_key=district_key
+        district_data[year][geo_key][total_field] = census_data[year][geo_key][edu_total_field]
 
     return categories, district_data
 
 
-def make_voting_precinct_data(categories, district_data = {}, state=48, district=7, year='2015',
+def make_voting_precinct_data(categories, district_data = {}, state=48, district=7, leg_body='US-REP', year='2015',
         voting_precincts_file='static/geojson/tx7-precincts.geojson'):
     """
     Args: 
@@ -1308,7 +1696,7 @@ def make_voting_precinct_data(categories, district_data = {}, state=48, district
     district = "{0:0>2}".format(district)
     
     state_abbr = str(states.mapping('fips', 'abbr')[state])
-    district_abbr = state_abbr + district
+    district_abbr = leg_body + '-' + state_abbr + district
     geojson_path = 'static/geojson/'
     
     # TODO generate voting precincts using these resources:
@@ -1364,17 +1752,23 @@ def make_voting_precinct_data(categories, district_data = {}, state=48, district
     return district_data
 
 
-def make_district_data(api, state, district, year):
+def make_district_data(api, state, district, leg_body, year):
     district_data=load_district_data()
 
     # Make the age categories and data for the district file
     categories, district_data = make_age_data(
+            state=state,
+            district=district,
+            leg_body=leg_body,
             api=api, 
             district_data=district_data,
             year=year)
     
     # Add income categories and data to the district file
     categories, district_data = make_income_data(
+            state=state,
+            district=district,
+            leg_body=leg_body,
             api=api,
             district_data=district_data,
             categories=categories,
@@ -1383,6 +1777,9 @@ def make_district_data(api, state, district, year):
     
     # Add race categories and data to the district file
     categories, district_data = make_race_data(
+            state=state,
+            district=district,
+            leg_body=leg_body,
             api=api,
             district_data=district_data,
             categories=categories,
@@ -1390,7 +1787,20 @@ def make_district_data(api, state, district, year):
         )
     # Add educational categories and data to the district file
     categories, district_data = make_edu_data(
+            state=state,
+            district=district,
+            leg_body=leg_body,
             api=api,
+            district_data=district_data,
+            categories=categories,
+            year=year
+        )
+    
+    if leg_body == 'STATE-REP' or leg_body == 'STATE-SEN':
+        district_data = make_district_data_for_state_leg(
+            state=state,
+            district=district,
+            leg_body=leg_body,
             district_data=district_data,
             categories=categories,
             year=year
@@ -1400,7 +1810,7 @@ def make_district_data(api, state, district, year):
 
 
 def main():
-    """Builds stats and progressive scores for a Congressional District.
+    """Builds stats for a legislative district, e.g., a US Congressional District
     """
     args = get_command_line_args()
     settings = read_settings(args)
@@ -1408,12 +1818,14 @@ def main():
     census_api_key = settings['census_api_key']
     state = settings['state']
     district = settings['district']
+    leg_body = settings['leg_body']
     year = settings['year']
     voting_precincts_file = settings['voting_precincts']
     
     find_blockgroups_in_district(
             state=state,
             district=district,
+            leg_body=leg_body,
             year=year
         )
 
@@ -1421,14 +1833,20 @@ def main():
             api=census_api_key,
             state=state,
             district=district,
+            leg_body=leg_body,
             year=year
         )
     
+    # TODO find voting precincts
+
     if voting_precincts_file is not None:
         # Add voting precinct data to the district file
         district_data = make_voting_precinct_data(
                 district_data=district_data, 
                 categories=categories,
+                state=state,
+                district=district,
+                leg_body=leg_body,
                 year=year,
                 voting_precincts_file=voting_precincts_file
             )

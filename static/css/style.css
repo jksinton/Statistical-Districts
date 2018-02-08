@@ -158,3 +158,11 @@ ul.nav {
 .slideout-open .slideout-menu {
   	display: block;
 }
+
+@media (min-width: 768px) {
+
+	#bootstrap-override div.container {
+		padding-right: 75px;
+		padding-left: 75px;
+	}
+}

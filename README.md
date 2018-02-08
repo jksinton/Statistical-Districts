@@ -1,7 +1,7 @@
 # Statistical Districts
-A program for creating an interactive map of Census data for select Congressional Districts
+A program for creating an interactive map of Census data for select Congressional Districts, Texas House Districts, and Texas Senate Districts.
 
-##  Required Python Libraries:
+##  Required Python Libraries
 * [geopandas](https://github.com/geopandas/geopandas)
 * [tornado](https://github.com/tornadoweb/tornado)
 * [census](https://github.com/datamade/census)
@@ -22,13 +22,15 @@ A program for creating an interactive map of Census data for select Congressiona
 
 3. Set variables in settings files
 
-4. TODO Build the stats for a given Congressional District:
-  `python statbuilder.py --state tx --district 7`
-   
-   `statbuilder.py` currently only builds the stats for TX-07.
-
-  Add a year:
-   `statbuilder.py --state tx --district 7 --year 2014`
+4. Build the stats from the Census Bureau with `python statbuilder.py`
+  * Build the stats for a particular year: 
+    * `statbuilder.py --year 2014`
+  * Build the stats for a given Congressional District: 
+    * `python statbuilder.py --state 48 --district 7`
+  * Build the stats for a given Texas House District:  
+    * `python statbuilder.py --state 48 --district 134 --leg-body "STATE-REP"`
+  * Build the stats for a given Texas Senate District
+    * `python statbuilder.py --state 48 --district 17 --leg-body "STATE-SEN"`
 
 5. Run the webserver
   `python statserver.py`

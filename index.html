@@ -22,7 +22,7 @@
 		<script src={{ static_url("js/settings.js") }}></script>
 		<script src={{ static_url("js/script.js") }} defer></script>
 	</head>
-	<body>
+	<body id="bootstrap-overrride">
 		<nav id="menu">
 			<div class="sidebar-info" id="sidebar-info">
 				<h3><a href="https://github.com/jksinton/Statistical-Districts">Statistical Districts</a></h3>
@@ -120,13 +120,12 @@
 							
 							<div class="panel-heading">
 						  		<h4 class="panel-title">
-									<a data-toggle="collapse" href="#collapse1">Top Precincts</a>
+									<a data-toggle="collapse" href="#collapse1" id="top-geounits-heading"></a>
 						  		</h4> <!--End heading -->
 							</div>  <!--End panel-heading -->
 							
 							<div id="collapse1" class="panel-collapse collapse">
-						  		<div class="panel-body">Panel Body</div>
-								<table class="table table-hover table-striped" id="top-precincts-table"></table>
+								<table class="table table-hover table-striped" id="top-geounits-table"></table>
 							</div>  <!--End collapse1 -->
 						
 						</div>  <!--End panel -->
