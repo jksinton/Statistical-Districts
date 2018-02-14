@@ -20,9 +20,12 @@ A program for creating an interactive map of Census data for select Congressiona
   * [US Census](https://api.census.gov/data/key_signup.html)
   * [Google Maps](https://developers.google.com/maps/)
 
-3. Set variables in settings files
+3. Set variables in settings files:
+  * Rename `example.settings.ini` to `settings.ini`; and put your Census API in this file
+  * Rename `static/js/example.settings.js` to `static/js/settings.js`; and put your Google Maps API key in in this file
 
-4. Build the stats from the Census Bureau with `python statbuilder.py`
+## Usage
+1. Build the stats from the Census Bureau with `python statbuilder.py`
   * Build the stats for a particular year: 
     * `statbuilder.py --year 2014`
   * Build the stats for a given Congressional District: 
@@ -32,10 +35,10 @@ A program for creating an interactive map of Census data for select Congressiona
   * Build the stats for a given Texas Senate District
     * `python statbuilder.py --state 48 --district 17 --leg-body "STATE-SEN"`
 
-5. Run the webserver
+2. Run the webserver
   `python statserver.py`
 
-6. View results in your web browser by going to [localhost:8000](http://localhost:8000)
+3. View results in your web browser by going to [localhost:8000](http://localhost:8000)
 
 ## Open Source Licenses
   * Bootstrap by [Twitter](https://github.com/twbs/bootstrap/blob/master/LICENSE)
