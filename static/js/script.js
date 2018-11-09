@@ -17,6 +17,7 @@ var categories;
 var category;
 var category_type;
 var census_year = '2016';
+var voting_year = '2018';
 var chartColors = {
 	red: 'rgb(255, 99, 132)',
 	green: 'rgb(75, 192, 192)',
@@ -37,6 +38,7 @@ var district_file;
 var district_layer;
 var district_min = Number.MAX_VALUE; 
 var district_max = -Number.MAX_VALUE;
+var district_title = "";
 var debug_is_on = false;
 var fields;
 var field_graph_data;
@@ -127,7 +129,7 @@ function init() {
 	category_type = 'Census';
 	geounit_type = 'bg';
 	property_name = 'GEOID';
-	
+
 	$.ajax({
   		url: '/static/data/district.json',
   		async: false,
@@ -139,8 +141,11 @@ function init() {
 			district_file = json['district_geojson'];
 			latitude = json['lat'];
 			longitude = json['lng'];
+			district_title = json['title'];
   		}
 	});
+
+	$('h4#district-title').html(district_title);
 	
 	$.ajax({
   		url: '/static/data/district-data.json',
@@ -283,6 +288,37 @@ function set_select_box() {
  *
  **/
 function load_category(c, c_type) {
+	category = c;
+	category_type = c_type;
+	fields = categories[category][category_type]['fields'];
+	labels = categories[category][category_type]['labels'];
+	
+	if( property_name === 'PRECINCT' ) {
+		// remove the median income field if it's precinct
+		if( category === 'Income' && category_type === 'Census' ){
+			var index = fields.indexOf('median_income');
+			if (index > -1) {
+    			fields.splice(index, 1);
+			}
+		}
+	}
+
+	set_select_box();
+	google.maps.event.trigger(document.getElementById('fields'), 'change');
+
+	return false;
+}
+
+/**
+ * load_category() loads the map and charts for a given category, c
+ * e.g., Age:Census
+ * 
+ * TODO elimate category type or only show Census data by default a
+ * 
+ * returns false
+ *
+ **/
+function load_election_results() {
 	category = c;
 	category_type = c_type;
 	fields = categories[category][category_type]['fields'];

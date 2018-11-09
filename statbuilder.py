@@ -38,7 +38,7 @@ from statlib import *
 
 # GLOBAL CONSTANTS
 
-VERSION = '0.4.5'
+VERSION = '0.4.6'
 
 def read_settings(args):
     """Read the settings stored in settings.ini
@@ -54,7 +54,9 @@ def read_settings(args):
     district = 7
     leg_body = 'US-REP'
     year = '2016'
+    voting_year = '2018'
     voting_precincts = None
+    voting_results = None
     
     # Set values in settings.ini
     settings = ConfigParser.ConfigParser()
@@ -65,6 +67,8 @@ def read_settings(args):
 
     if args.year:
         year=args.year
+    if args.voting_year:
+        voting_year=args.voting_year
     if args.state:
         state = args.state
     if args.district:
@@ -73,6 +77,8 @@ def read_settings(args):
         leg_body = args.leg_body
     if args.voting_precincts:
         voting_precincts = args.voting_precincts
+    if args.voting_results:
+        voting_results = args.voting_results
 
     settings_dict = { 
                 "census_api_key": census_api_key,
@@ -80,7 +86,9 @@ def read_settings(args):
                 "district": district,
                 "leg_body": leg_body,
                 "year": year,
-                "voting_precincts": voting_precincts
+                "voting_year": voting_year,
+                "voting_precincts": voting_precincts,
+                "voting_results": voting_results
             }
 
     return settings_dict
@@ -102,6 +110,8 @@ def get_command_line_args():
     parser.add_argument('-l','--leg-body', help='Legislative Body, e.g., US-REP, US-SEN, STATE-REP, or STATE-SEN')
     parser.add_argument('-y','--year', help='Year of Census data to build')
     parser.add_argument('-p','--voting-precincts', help='Estimate stats for voting precincts using geospatial vector file, e.g., shapefile or GEOJSON')
+    parser.add_argument('-q','--voting-year', help='Year of voting results')
+    parser.add_argument('-r','--voting-results', help='Build voting results from Open Elections csv file')
     parser.add_argument('-v','--version',action='version', 
             version='%(prog)s %(version)s' % {"prog": parser.prog, "version": _version})
     parser.add_argument('--debug',help='print debug messages',action="store_true")
@@ -193,14 +203,25 @@ def extract_all(fn,dst="."):
         print "Please provide a tar archive file or zip file"
 
 
+# TODO Convert to a class
+
+class District(object):
+
+    def __init__(self, state, district, leg_body):
+        self.state = state
+        self.district = district
+        self.leg_body = leg_body
+
+
 def get_district_geojson_filename(state=48, district=7, leg_body='US-REP'):
-    """
+    """Return the path and file name for the district file
     Args:
-        state: 
-        district: 
-        leg_body:
+        state: state of district
+        district: district number
+        leg_body: legislative body, e.g., State Representative, State Senate, 
+                  or US Representative
     Returns:
-        Nothing
+        district_file: filename of geojson file containing the boundary of the district
     Raises:
         Nothing
     """
@@ -217,13 +238,14 @@ def get_district_geojson_filename(state=48, district=7, leg_body='US-REP'):
 
 
 def get_voting_precincts_geojson_filename(state=48, district=7, leg_body='US-REP'):
-    """
+    """ Return the path and filename for the voting precincts file
     Args:
-        state: 
-        district: 
-        leg_body:
+        state: state of district
+        district: district number
+        leg_body: legislative body, e.g., State Representative, State Senate, 
+                  or US Representative
     Returns:
-        Nothing
+        vps_file: filename of the geijson file containing the voting precincts of the district
     Raises:
         Nothing
     """
@@ -239,19 +261,36 @@ def get_voting_precincts_geojson_filename(state=48, district=7, leg_body='US-REP
     return vps_file
 
 
-def get_state_blockgroups_geojson_filename(state=48, district=7, leg_body='US-REP'):
-    """
+def get_statewide_voting_precincts_geojson_filename(state=48):
+    """Return the path and filename containing all the voting precincts for a state
     Args:
-        state: 
-        district: 
-        leg_body:
+        state: state of district
     Returns:
-        Nothing
+        vps_file: filename of the geojson file containing the voting precincts of the state
     Raises:
         Nothing
     """
     state = "{0:0>2}".format(state)
-    district = "{0:0>2}".format(district)
+    
+    state_abbr = str(states.mapping('fips', 'abbr')[state])
+    vps_abbr = state_abbr + '-voting-precincts'
+    geojson_path = 'static/geojson/'
+
+    vps_file = geojson_path +  vps_abbr + '.geojson'
+
+    return vps_file
+
+
+def get_state_blockgroups_geojson_filename(state=48):
+    """Return the path and filename to the block groups for a state
+    Args:
+        state: state of the disctrict
+    Returns:
+        blockgroups_file: filename of the geojson file containing the blockgroups of the state
+    Raises:
+        Nothing
+    """
+    state = "{0:0>2}".format(state)
     
     state_abbr = str(states.mapping('fips', 'abbr')[state])
     geojson_path = 'static/geojson/'
@@ -262,13 +301,14 @@ def get_state_blockgroups_geojson_filename(state=48, district=7, leg_body='US-RE
 
 
 def get_bgs_in_district_geojson_filename(state=48, district=7, leg_body='US-REP'):
-    """
+    """Return the path and filename of the geojson file containing the blockgroups that overlap with the disctrict
     Args:
-        state: 
-        district: 
-        leg_body:
+        state: state of district
+        district: district number
+        leg_body: legislative body, e.g., State Representative, State Senate, 
+                  or US Representative
     Returns:
-        Nothing
+        bgs_in_district_GeoJSON: filename of the geojson file containing the blockgroups that overlap with the disctrict
     Raises:
         Nothing
     """
@@ -287,13 +327,14 @@ def get_bgs_in_district_geojson_filename(state=48, district=7, leg_body='US-REP'
 
 
 def get_bgs_in_district_json_filename(state=48, district=7, leg_body='US-REP'):
-    """
+    """Return the path and filename of the json file containing the blockgroups that overlap with the disctrict
     Args:
-        state: 
-        district: 
-        leg_body:
+        state: state of district
+        district: district number
+        leg_body: legislative body, e.g., State Representative, State Senate, 
+                  or US Representative
     Returns:
-        Nothing
+        bgs_in_district_JSON: filename of json file containing the blockgroups that overlap with the disctrict
     Raises:
         Nothing
     """
@@ -310,11 +351,12 @@ def get_bgs_in_district_json_filename(state=48, district=7, leg_body='US-REP'):
    
 
 def get_district_file(state=48, district=7, leg_body='US-REP'):
-    """
+    """Download the shape file for the disctrict
     Args:
-        state: 
-        district: 
-        leg_body:
+        state: state of district
+        district: district number
+        leg_body: legislative body, e.g., State Representative, State Senate, 
+                  or US Representative
     Returns:
         Nothing
     Raises:
@@ -323,7 +365,7 @@ def get_district_file(state=48, district=7, leg_body='US-REP'):
 
     district_file = get_district_geojson_filename(
             state=state, district=district, leg_body=leg_body)
-            
+    geojson_path = 'static/geojson/' 
     state = "{0:0>2}".format(state)
     district = "{0:0>2}".format(district)
     
@@ -381,19 +423,78 @@ def get_district_file(state=48, district=7, leg_body='US-REP'):
         os.remove(district_dl_file)
 
 
-def get_state_blockgroups_file(state=48, district=7, leg_body='US-REP', year='2015'):
-    """
+def get_statewide_voting_precincts(state=48):
+    """Download the shape file with the statewide voting precincts
     Args:
-        state: 
-        district: 
-        leg_body:
+        state: state of the disctrict
+    Returns:
+        Nothing
+    Raises:
+        Nothing
+    """
+    vps_file = get_statewide_voting_precincts_geojson_filename(state)
+    geojson_path = 'static/geojson/' 
+    state = "{0:0>2}".format(state)
+    
+    if not os.path.isfile(vps_file):
+        print "Downloading statewide voting precincts file"
+        # TODO download the most recent precincts file
+        # currently it downloads the 2016 TX precincts
+        # 'https://github.com/nvkelso/election-geodata/raw/master/data/48-texas/statewide/2016/Precincts.zip'
+        # TODO add support for other states
+        
+        vps_url = 'https://github.com/nvkelso/election-geodata/raw/master/data/48-texas/statewide/2016/Precincts.zip'
+        
+        vps_dl_file = geojson_path + 'vps.zip'
+        download_file(vps_url, vps_dl_file)
+        extract_all(vps_dl_file, geojson_path)
+        
+        if len(glob(geojson_path + '*shp')) > 0:
+            vps_shapefile = glob(geojson_path + '*shp')[0]
+        else:
+            for p in glob(geojson_path + '*'):
+                if os.path.isdir(p):
+                    shapefile_path = p
+                    vps_shapefile = glob(p + '/*shp')[0]
+        
+        print "Converting statewide voting precincts file to GEOJSON"
+        vps = gpd.read_file(vps_shapefile)
+        
+        vps = vps.to_crs({'init': u'epsg:4326'})
+        vps.to_file(vps_file, driver='GeoJSON')
+
+        # cleanup geojson dir
+        if len(glob(geojson_path + '*shp')) > 0:
+            shapefile_prefix = glob(geojson_path + '*shp')[0].split(
+                    geojson_path)[1].split('.')[0]
+            shapefiles = glob(geojson_path + shapefile_prefix + '*')
+            for f in shapefiles:
+                os.remove(f)
+        else:
+            shapefile_prefix = glob(shapefile_path + '/*shp')[0].split(
+                    shapefile_path)[1].split('.')[0]
+            shapefiles = glob(shapefile_path + shapefile_prefix + '*')
+            for f in shapefiles:
+                os.remove(f)
+            os.rmdir(shapefile_path)
+        os.remove(vps_dl_file)
+
+
+def get_state_blockgroups_file(state=48, district=7, leg_body='US-REP', year='2015'):
+    """Download the file, from the Census Bureau, containing the blockgroups for an entire state
+    Args:
+        state: state of the disctrict
+        district: district number
+        leg_body: legislative body, e.g., State Representative, State Senate, 
+                  or US Representative
+        year: year for the district data
     Returns:
         Nothing
     Raises:
         Nothing
     """
 
-    blockgroups_file = get_state_blockgroups_geojson_filename(state=state, district=district, leg_body=leg_body)
+    blockgroups_file = get_state_blockgroups_geojson_filename(state=state)
             
     state = "{0:0>2}".format(state)
     district = "{0:0>2}".format(district)
@@ -428,8 +529,12 @@ def get_state_blockgroups_file(state=48, district=7, leg_body='US-REP', year='20
 def find_blockgroups_in_district(state=48, district=7, leg_body='US-REP', year='2015', debug_is_on=False):
     """Find the blockgroups that intersect with a legislative district, e.g., US Congressional District.
     Args:
-        state: The state where the Congressional district is in
-        district: Congressional district
+        state: The state of the district
+        district: district number
+        leg_body: legislative body, e.g., State Representative, State Senate, 
+                  or US Representative
+        year: year associated with the district data
+        debug_is_on: boolean providing whether to print debug output
     Returns:
         Nothing
     Raises:
@@ -439,8 +544,7 @@ def find_blockgroups_in_district(state=48, district=7, leg_body='US-REP', year='
     bgs_in_district_GeoJSON = get_bgs_in_district_geojson_filename(state=state, district=district, leg_body=leg_body)
     bgs_in_district_JSON = get_bgs_in_district_json_filename(state=state, district=district, leg_body=leg_body)
     district_file = get_district_geojson_filename(state=state, district=district, leg_body=leg_body)
-    blockgroups_file = get_state_blockgroups_geojson_filename(state=state, district=district, leg_body=leg_body)
-    
+    blockgroups_file = get_state_blockgroups_geojson_filename(state=state)
     
     if not os.path.isfile(bgs_in_district_GeoJSON):
         get_district_file(state=state, district=district, leg_body=leg_body)
@@ -524,89 +628,99 @@ def find_blockgroups_in_district(state=48, district=7, leg_body='US-REP', year='
             plt.close()
         
 
-def find_voting_precincts_in_district(voting_precincts_file, state=48, district=7, leg_body='US-REP'):
-    """
+def find_voting_precincts_in_district(state=48, district=7, leg_body='US-REP'):
+    """Find the voting precincts that are in a district
     Args:
-        state:
-        district:
-        leg_body:
+        state: state of the disctrict
+        district: district number
+        leg_body: legislative body, e.g., State Representative, State Senate, 
+                  or US Representative
     Returns:
         Nothing
     Raises:
         Nothing
     """
-    district_file = get_district_geojson_filename(
-            state=state, district=district, leg_body=leg_body)
-    
     vps_in_district_GeoJSON  = get_voting_precincts_geojson_filename(
             state=state, district=district, leg_body=leg_body)
     
-    get_district_file(state=state, district=district, leg_body=leg_body)
+    if not os.path.isfile(vps_in_district_GeoJSON):
+        voting_precincts_file = get_statewide_voting_precincts_geojson_filename(state)
     
-    print "Finding voting precincts in district"
-    district_boundary = gpd.read_file(district_file)
-    voting_precincts = gpd.read_file(voting_precincts_file)
+        district_file = get_district_geojson_filename(
+            state=state, district=district, leg_body=leg_body)
     
-    print "Finding voting precincts that touch the district boundary"
-    vps_touching_district_bool = voting_precincts.touches(district_boundary.geometry[0])
+        get_district_file(state=state, district=district, leg_body=leg_body)
+
+        get_statewide_voting_precincts(state=state)
         
-    print "Finding voting precincts that intersect the district boundary"
-    vps_intersecting_district_bool = voting_precincts.intersects(district_boundary.geometry[0])
+        print "Finding voting precincts in district"
+        district_boundary = gpd.read_file(district_file)
+        voting_precincts = gpd.read_file(voting_precincts_file)
         
-    print "Filtering the voting precincts"
-    for index in vps_touching_district_bool[vps_touching_district_bool==True].index:
-        vps_intersecting_district_bool.loc[index] = False
-
-    vps_in_district = voting_precincts[vps_intersecting_district_bool]
- 
-    print "Finding blockgroups to filter based on threshold"
-    intersections = vps_in_district.intersection(district_boundary.geometry[0])
-
-    areas_of_intersections = intersections.area
-    indx_out = []
-    for vp_index, vp in vps_in_district.iterrows():
-        area_of_intersection = areas_of_intersections[vp_index]
-        vp_area = GeoSeries(vp.geometry).area[0]
-
-        share_of_intersection = area_of_intersection / vp_area
+        print "Finding voting precincts that touch the district boundary"
+        vps_touching_district_bool = voting_precincts.touches(district_boundary.geometry[0])
             
-        if share_of_intersection < 0.10:
-            indx_out.append(vp_index)
+        print "Finding voting precincts that intersect the district boundary"
+        vps_intersecting_district_bool = voting_precincts.intersects(district_boundary.geometry[0])
+            
+        print "Filtering the voting precincts"
+        for index in vps_touching_district_bool[vps_touching_district_bool==True].index:
+            vps_intersecting_district_bool.loc[index] = False
 
-        #print "\nBlock Group: ", bg.GEOID
-        #print "Area: ", str(bg_area)
-        #print "Share of Intersection: ", str(share_of_intersection)
+        vps_in_district = voting_precincts[vps_intersecting_district_bool]
+     
+        print "Finding blockgroups to filter based on threshold"
+        intersections = vps_in_district.intersection(district_boundary.geometry[0])
+
+        areas_of_intersections = intersections.area
+        indx_out = []
+        for vp_index, vp in vps_in_district.iterrows():
+            area_of_intersection = areas_of_intersections[vp_index]
+            vp_area = GeoSeries(vp.geometry).area[0]
+
+            share_of_intersection = area_of_intersection / vp_area
+                
+            if share_of_intersection < 0.10:
+                indx_out.append(vp_index)
+
+            #print "\nBlock Group: ", bg.GEOID
+            #print "Area: ", str(bg_area)
+            #print "Share of Intersection: ", str(share_of_intersection)
+            
+        vps_to_remove_bool = pd.Series([False]*len(voting_precincts))
+
+        for index in indx_out:
+            vps_to_remove_bool.loc[index] = True
+
+        vps_to_remove = voting_precincts[vps_to_remove_bool]
+
+        for index in vps_to_remove_bool[vps_to_remove_bool==True].index:
+            vps_intersecting_district_bool.loc[index] = False
+
+        vps_in_district = voting_precincts[vps_intersecting_district_bool]
+        if 'PREC' in list(vps_in_district.columns.values):
+            vps_in_district = vps_in_district.rename(columns={'PREC':'PRECINCT'})
+
+        # See issue #367 https://github.com/geopandas/geopandas/issues/367
+        try: 
+            os.remove(vps_in_district_GeoJSON)
+        except OSError:
+            pass
+        vps_in_district.to_file(vps_in_district_GeoJSON, driver='GeoJSON')
         
-    vps_to_remove_bool = pd.Series([False]*len(voting_precincts))
-
-    for index in indx_out:
-        vps_to_remove_bool.loc[index] = True
-
-    vps_to_remove = voting_precincts[vps_to_remove_bool]
-
-    for index in vps_to_remove_bool[vps_to_remove_bool==True].index:
-        vps_intersecting_district_bool.loc[index] = False
-
-    vps_in_district = voting_precincts[vps_intersecting_district_bool]
-
-    # See issue #367 https://github.com/geopandas/geopandas/issues/367
-    try: 
-        os.remove(vps_in_district_GeoJSON)
-    except OSError:
-        pass
-    vps_in_district.to_file(vps_in_district_GeoJSON, driver='GeoJSON')
-    
-    vps_in_district.sort_values(by=['PRECINCT'])[['PRECINCT']].to_csv("vps.csv", index=False)
+        vps_in_district.sort_values(by=['PRECINCT'])[['PRECINCT']].to_csv("vps.csv", index=False)
 
 
 def get_district_centroid(state=48, district=7, leg_body='US-REP', year='2015'):
-    """
+    """Return the centroid of a district
     Args:
-        state: 
-        district: 
-        leg_body:
+        state: state of the disctrict
+        district: district number
+        leg_body: legislative body, e.g., State Representative, State Senate, 
+                  or US Representative
     Returns:
-        Nothing
+        longitude: longitudinal coordinate of the centroid
+        latitude: latitudinal coordinate of the centroid
     Raises:
         Nothing
     """
@@ -624,14 +738,17 @@ def get_district_centroid(state=48, district=7, leg_body='US-REP', year='2015'):
 
 
 def get_blockgroup_census_data(api, fields, census_data = {}, state=48, district=7, leg_body='US-REP', year='2015'):
-    """Retrieve the census data for the block groups in a Congressional District
+    """Retrieve the census data for the block groups in a District
     Args:
         api: Census api key
         fields: the fields to query from api.census.gov; 
             See e.g., https://api.census.gov/data/2015/acs5/variables.html
         year: The year the census data was collected
-        state: The state where the Congressional district is in
-        district: The Congressional district
+        state: state of the district
+        district: district number
+        leg_body: legislative body, e.g., State Representative, State Senate, 
+                  or US Representative
+        year: year associated with district data
     Returns:
         census_data: a list of dictionaries storing the blockgroup results
     Raises
@@ -687,9 +804,11 @@ def get_district_census_data(api, fields, census_data = {}, state=48, district=7
         api: Census api key
         fields: the fields to query from api.census.gov; 
             See e.g., https://api.census.gov/data/2015/acs/acs5/variables.html
-        year: The year the census data was collected
-        state: The state where the Congressional district is in
-        district: The Congressional district
+        state: the state of the district
+        district: district number
+        leg_body: legislative body, e.g., State Representative, State Senate, 
+                  or US Representative
+        year: year associated with disctrict data
     Returns:
         census_data: a list of dictionaries storing the census data
     Raises
@@ -701,14 +820,16 @@ def get_district_census_data(api, fields, census_data = {}, state=48, district=7
     else:
         if district_key not in census_data[year].keys():
             census_data[year][district_key] = { }
-    
+
     if leg_body == 'US-REP':
+        state = "{0:0>2}".format(state)
+        district = "{0:0>2}".format(district)
         # Setup Census query
-        census_query = Census(api, year=year)
+        census_query = Census(api, year=int(year))
         district_stats = census_query.acs5.get(
                         fields,
-                        {   'for': 'congressional district:' + str(district),
-                            'in': 'state:' + str(state)
+                        {   'for': 'congressional district:' + district,
+                            'in': 'state:' + state
                         }
                     )[0]
         census_data[year][district_key].update(district_stats)
@@ -733,10 +854,9 @@ def to_json(data, out_filename='static/data/out.json'):
 def get_census_fields_by_table(table, year='2015'):
     """Return the fields in a census table
     Args: 
-        table: 
-        year:  
+        table: the table name  
+        year: year of census data 
     Returns: 
-        TODO document structure of fields and labels
         fields: 
         labels: 
     Raises:
@@ -939,13 +1059,21 @@ def get_census_data(api, category, fields,
         state=48, district=7, leg_body='US-REP', year='2015'):
     """Store the raw census data in a json file and return the census data
     Args:
-        
+        api
+        category
+        fields
+        district_config_file
+        census_data_file
+        state
+        district
+        leg_body
+        year
     Returns: 
         census_data: 
     Raises:
         Nothing (yet)
     """
-    # TODO document
+    # If district config file is there, only get the census data that's not there
     if os.path.isfile(district_config_file):
         with open(district_config_file) as district_json:
             district_config = json.load(district_json)
@@ -964,6 +1092,7 @@ def get_census_data(api, category, fields,
                 census_data_has_my_category = category in district_config[year]
                 if census_data_has_my_category:
                     return census_data
+
             # if not, get data via census api and save to file
             # get the data for the blockgroups in the district
             census_data = get_blockgroup_census_data(
@@ -985,6 +1114,7 @@ def get_census_data(api, category, fields,
                     leg_body=leg_body, 
                     year=year
                 )
+
             # TODO add get_tract_census_data()
 
             if year not in district_config.keys():
@@ -1018,29 +1148,44 @@ def get_census_data(api, category, fields,
         )
 
     # TODO add get_tract_census_data()
+
+    # create district config file
+    # add state, district, years, and categories
     district_config = {}
     district_config['state'] = state
     district_config['district'] = district
     district_config[year] = [category]
     district_config['years'] = [year]
     
-    # TODO add centroid, district geojson filename, block groups geojson filename
+    # add centroid
     longitude, latitude = get_district_centroid(
             state=state, district=district, leg_body=leg_body, year=year)
-    
     district_config['lat']=latitude
     district_config['lng']=longitude   
     
+    # add file locations
     district_GeoJSON = get_district_geojson_filename(
             state=state, district=district, leg_body=leg_body)
     bgs_in_district_GeoJSON = get_bgs_in_district_geojson_filename(
             state=state, district=district, leg_body=leg_body)
     vps_in_district_GeoJSON  = get_voting_precincts_geojson_filename(
             state=state, district=district, leg_body=leg_body)
-       
     district_config['district_geojson'] = '/' + district_GeoJSON
     district_config['bg_geojson'] = '/' + bgs_in_district_GeoJSON
     district_config['precinct_geojson'] = '/' + vps_in_district_GeoJSON
+    
+    # add title
+    state_fips = "{0:0>2}".format(state) 
+    district_name = "{0:0>2}".format(district)
+    state_name = states.mapping('abbr', 'name')[states.mapping('fips', 'abbr')[state_fips]]
+    if leg_body == 'US-REP':
+        leg_name = "Congressional"
+    if leg_body == 'STATE-REP':
+        leg_name = "House"
+    if leg_body == 'STATE-SEN':
+        leg_name = "Senate"
+    title = state_name + " " + leg_body + " District "  + district_name
+    district_config['title']=title
 
     # save census data to file
     to_json(census_data, census_data_file)
@@ -1678,7 +1823,7 @@ def make_edu_data( api,  district_data = {}, categories = {'Education': { }},
 
 
 def make_voting_precinct_data(categories, district_data = {}, state=48, district=7, leg_body='US-REP', year='2015',
-        voting_precincts_file='static/geojson/tx7-precincts.geojson'):
+        voting_precincts_file=None):
     """
     Args: 
         district_data:
@@ -1699,15 +1844,10 @@ def make_voting_precinct_data(categories, district_data = {}, state=48, district
     district_abbr = leg_body + '-' + state_abbr + district
     geojson_path = 'static/geojson/'
     
-    # TODO generate voting precincts using these resources:
-    # Open Elections data - https://github.com/openelections/openelections-core
-    #   This can provide the voting precincts in a Congressional District
-    # Election Geodata - https://github.com/nvkelso/election-geodata
-    #   This can provide the voting precincts for an election year
-
-    if os.path.isdir(geojson_path) == False:
-        print "Making path {path}".format(path=geojson_path)
-        mkdir_p(geojson_path)
+    if voting_precincts_file is None:
+        find_voting_precincts_in_district(state=state, district=district, leg_body=leg_body)
+        voting_precincts_file  = get_voting_precincts_geojson_filename(
+                state=state, district=district, leg_body=leg_body)
 
     blockgroups_file = geojson_path + district_abbr + '-blockgroups.geojson' 
 
@@ -1715,10 +1855,12 @@ def make_voting_precinct_data(categories, district_data = {}, state=48, district
     blockgroups = gpd.read_file(blockgroups_file)
     voting_precincts = gpd.read_file(voting_precincts_file)
     
-    district_data[year][precinct_key] = {}
+    if precinct_key not in district_data[year].keys():
+        district_data[year][precinct_key] = {}
     for precIndex, precinct in voting_precincts.iterrows():
         geoid = precinct.PRECINCT
-        district_data[year][precinct_key][geoid] = {}
+        if geoid not in district_data[year][precinct_key].keys():
+            district_data[year][precinct_key][geoid] = {}
         for cat_index, category in categories.iteritems():
             for cat_type_index, cat_type in category.iteritems():
                 for field in cat_type['fields']:
@@ -1750,6 +1892,73 @@ def make_voting_precinct_data(categories, district_data = {}, state=48, district
             district_data[year][precinct_key][geoid][field] = field_to_int
 
     return district_data
+
+
+def make_voting_results_data(categories, district_data = {}, state=48, district=7, leg_body='US-REP', year='2015',
+        voting_precincts_file=None, voting_results_file=None):
+    """
+    Args: 
+        district_data:
+        blockgroups:
+        voting_precincts_file:
+    Returns: 
+        categories:
+        district_data:
+    Raises:
+        Nothing (yet)
+    """
+    precinct_key = 'precinct'
+    category = 'Voting Results'
+    fields = ['regisered_voters']
+    labels = {'registered_voters' : 'Registered Voters'}
+    
+    state = "{0:0>2}".format(state)
+    district = "{0:0>2}".format(district)
+    
+    state_abbr = str(states.mapping('fips', 'abbr')[state])
+    district_abbr = leg_body + '-' + state_abbr + district
+    geojson_path = 'static/geojson/'
+    
+    if voting_precincts_file is None:
+        find_voting_precincts_in_district(state=state, district=district, leg_body=leg_body)
+        voting_precincts_file  = get_voting_precincts_geojson_filename(
+                state=state, district=district, leg_body=leg_body)
+    
+    if voting_results_file is None:
+        # TODO download voting results from Open Elections, e.g., https://github.com/openelections/openelections-data-tx
+        voting_results_file = 'static/data/harris-county-2018-primary-results.csv'
+
+    if category not in categories.keys():
+        categories[category] = {'fields': fields, 'labels': labels}
+    
+    voting_results_data = pd.read_csv(voting_results_file)
+
+    voting_precincts = gpd.read_file(voting_precincts_file)
+
+    if year not in district_data.keys():
+        district_data[year] = { precinct_key: {} }
+    if year in district_data.keys():
+        if precinct_key not in district_data[year].keys():
+            district_data[year][precinct_key] = {}
+    
+    for precIndex, precinct in voting_precincts.iterrows():
+        geoid = precinct.PRECINCT
+        if geoid not in district_data[year][precinct_key].keys():
+            district_data[year][precinct_key][geoid] = {} 
+        
+        district_data[year][precinct_key][geoid] = {}
+        field = 'registered_voters'
+
+        district_data[year][precinct_key][geoid][field] = int(
+                voting_results_data[ 
+                    (voting_results_data['precinct'] == int(geoid)) & 
+                    (voting_results_data['office'] == 'Registered Voters') 
+                ].iloc[0]['votes']
+            )
+    
+    # TODO add up district-wide data
+
+    return categories, district_data
 
 
 def make_district_data(api, state, district, leg_body, year):
@@ -1820,7 +2029,9 @@ def main():
     district = settings['district']
     leg_body = settings['leg_body']
     year = settings['year']
+    voting_year = settings['voting_year']
     voting_precincts_file = settings['voting_precincts']
+    voting_results_file = settings['voting_results']
     
     find_blockgroups_in_district(
             state=state,
@@ -1836,20 +2047,29 @@ def main():
             leg_body=leg_body,
             year=year
         )
-    
-    # TODO find voting precincts
 
-    if voting_precincts_file is not None:
-        # Add voting precinct data to the district file
-        district_data = make_voting_precinct_data(
-                district_data=district_data, 
-                categories=categories,
-                state=state,
-                district=district,
-                leg_body=leg_body,
-                year=year,
-                voting_precincts_file=voting_precincts_file
-            )
+    # Estimate voting precinct data based on block group data
+    district_data = make_voting_precinct_data(
+            district_data=district_data, 
+            categories=categories,
+            state=state,
+            district=district,
+            leg_body=leg_body,
+            year=year,
+            voting_precincts_file=voting_precincts_file
+        )
+
+
+    categories, district_data = make_voting_results_data(
+            categories=categories, 
+            district_data = district_data, 
+            state=state, 
+            district=district, 
+            leg_body=leg_body, 
+            year=voting_year,
+            voting_precincts_file=voting_precincts_file, 
+            voting_results_file=voting_results_file
+        )
 
     to_json(district_data, "static/data/district-data.json")
     to_json(categories, "static/data/categories.json")

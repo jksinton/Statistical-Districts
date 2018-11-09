@@ -11,11 +11,11 @@ A program for creating an interactive map of Census data for select Congressiona
 ## Installation
 1. Install Python libraries:
 ```
-  pip install geopandas
-  pip install tornado
-  pip install census
-  pip install us
-  pip install matplotlib
+pip install geopandas
+pip install tornado
+pip install census
+pip install us
+pip install matplotlib
 ```
 
 2. Get API keys

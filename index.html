@@ -26,7 +26,7 @@
 		<nav id="menu">
 			<div class="sidebar-info" id="sidebar-info">
 				<h3><a href="https://github.com/jksinton/Statistical-Districts">Statistical Districts</a></h3>
-				<h4>Congressional District TX-07</h4>
+				<h4 id="district-title">Congressional District TX-07</h4>
 				<label id="district-over-18-label" for="district-over-18-value"></label>
 				<div id="district-over-18-value"></div>
 				<label id="district-data-label" for="district-data-value"></label>
@@ -58,6 +58,7 @@
 				</ul>
 				<li>Election Results</li>
 				<ul>
+					<li><a id="elec-2016" onclick="load_category('Voting Results', )" href="#map">2018</a></li>
 					<li><a id="elec-2016" onclick="loadElectionResults(2016)" href="#map">2016</a></li>
 					<li><a id="elec-2014" onclick="loadElectionResults(2014)" href="#map">2014</a></li>
 				</ul>
@@ -144,7 +145,7 @@
 							Version 0.1.0
 						</p>
 						<p class="footer">
-						Copyright &copy; 2017, James Sinton   All rights reserved.
+						Copyright &copy; 2018, James Sinton   All rights reserved.
 						</p>
 						<p class="footer">
 							<a href="https://github.com/jksinton/Statistical-Districts/blob/master/LICENSE">License</a>
