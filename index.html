@@ -4,7 +4,7 @@
 <!--
 	This file is part of Statistical Districts.
 
-	Copyright (c) 2018, James Sinton
+	Copyright (c) 2019, James Sinton
 	All rights reserved.
  
 	Released under the BSD 3-Clause License
@@ -36,31 +36,14 @@
 				<li><a id="tract" onclick="load_geounit('tract')" href="#map">Tract</a></li>
 				<li><a id="blockgroup" onclick="load_geounit('bg')" href="#map">Block Group</a></li>
 				<li><a id="voting-precinct" onclick="load_geounit('precinct')" href="#map">Voting Precinct</a></li>
-				<li>Age</li>
-				<ul>
-					<li><a id="age-census" onclick="load_category('Age', 'Census')" href="#map">Census</a></li>
-					<li><a id="age-pid" onclick="load_category('Age', 'PID')" href="#map">PID</a></li>
-				</ul>
-				<li>Race</li>
-				<ul>
-					<li><a id="race-census" onclick="load_category('Race', 'Census')" href="#map">Census</a></li>
-					<li><a id="race-pid" onclick="load_category('Race', 'PID')" href="#map">PID</a></li>
-				</ul>
-				<li>Income</li>
-				<ul>
-					<li><a id="income-census" onclick="load_category('Income', 'Census')" href="#map">Census</a></li>
-					<li><a id="income-pid" onclick="load_category('Income', 'PID')" href="#map">PID</a></li>
-				</ul>
-				<li>Education</li>
-				<ul>
-					<li><a id="edu-census" onclick="load_category('Education', 'Census')" href="#map">Census</a></li>
-					<li><a id="edu-pid" onclick="load_category('Education', 'PID')" href="#map">PID</a></li>
-				</ul>
+				<li><a id="age-census" onclick="load_category('Age', 'Census')" href="#map">Age</a></li>
+				<li><a id="race-census" onclick="load_category('Race', 'Census')" href="#map">Race</a></li>
+				<li><a id="income-census" onclick="load_category('Income', 'Census')" href="#map">Income</a></li>
+				<li><a id="edu-census" onclick="load_category('Education', 'Census')" href="#map">Education</a></li>
 				<li>Election Results</li>
 				<ul>
-					<li><a id="elec-2016" onclick="load_category('Voting Results', )" href="#map">2018</a></li>
-					<li><a id="elec-2016" onclick="loadElectionResults(2016)" href="#map">2016</a></li>
-					<li><a id="elec-2014" onclick="loadElectionResults(2014)" href="#map">2014</a></li>
+					<li><a id="elec-2018" onclick="load_election_results('2018')" href="#map">2018</a></li>
+					<li><a id="elec-2016" onclick="load_election_results('2016')" href="#map">2016</a></li>
 				</ul>
 			</ul> <!--End ul nav-list -->
 		</nav> <!--End nav -->
@@ -98,6 +81,10 @@
 							</div> <!--End div legend -->
 						</div> <!--End div controls -->
 						<div id="data-box" class="nicebox">
+							<p>
+								<label id="geoid-label" for="geoid-value"></label>
+								<span id="geoid-value"></span>
+							</p>
 							<label id="data-label" for="data-value"></label>
 							<span id="data-value"></span>
 						</div> <!--End div data-box -->
@@ -142,7 +129,7 @@
 				<div class="row bottom-row">
 					<div class="col-lg-12">
 						<p class="footer" id="version">
-							Version 0.1.0
+							Version 0.2.0
 						</p>
 						<p class="footer">
 						Copyright &copy; 2018, James Sinton   All rights reserved.

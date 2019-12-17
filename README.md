@@ -7,6 +7,8 @@ A program for creating an interactive map of Census data for select Congressiona
 * [census](https://github.com/datamade/census)
 * [us](https://github.com/unitedstates/python-us)
 * [matplotlib](https://github.com/matplotlib/matplotlib) (Used to debug GIS operations)
+* [openpyxl](https://openpyxl.readthedocs.io/en/stable/)
+* [tqdm](https://github.com/tqdm/tqdm)
 
 ## Installation
 1. Install Python libraries:
@@ -16,6 +18,8 @@ pip install tornado
 pip install census
 pip install us
 pip install matplotlib
+pip install openpyxl
+pip install tqdm
 ```
 
 2. Get API keys
@@ -54,6 +58,8 @@ pip install matplotlib
   * slideout.js by [Mango](https://github.com/Mango/slideout/blob/master/LICENSE)
   * tornado by [The Tornado Authors](https://github.com/tornadoweb/tornado/blob/master/LICENSE)
   * us by [Sunlight Labs](https://github.com/unitedstates/python-us/blob/master/LICENSE)
+  * tqdm by [various contributors](https://github.com/tqdm/tqdm/blob/master/LICENCE)
+  * openpyxl by [openpyxl](https://bitbucket.org/openpyxl/openpyxl/src/default/LICENCE.rst)
 
 ## Disclaimer
 

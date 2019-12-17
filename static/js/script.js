@@ -1,7 +1,7 @@
 /*
  * This file is part of Statistical Districts.
  * 
- * Copyright (c) 2018, James Sinton
+ * Copyright (c) 2019, James Sinton
  * All rights reserved.
  * 
  * Released under the BSD 3-Clause License
@@ -16,8 +16,7 @@
 var categories;
 var category;
 var category_type;
-var census_year = '2016';
-var voting_year = '2018';
+var census_year = '2017';
 var chartColors = {
 	red: 'rgb(255, 99, 132)',
 	green: 'rgb(75, 192, 192)',
@@ -40,6 +39,7 @@ var district_min = Number.MAX_VALUE;
 var district_max = -Number.MAX_VALUE;
 var district_title = "";
 var debug_is_on = false;
+var election_year = '2018';
 var fields;
 var field_graph_data;
 var geounit_type;
@@ -54,9 +54,12 @@ var geounits_layer;
 var hover_geounits = [];
 var labels;
 var map;
+var map_year = '2016';
 var property_name;
 var slideout;
 var years;
+var census_years;
+var election_years;
 
 /* loadGoogleMapsAPI() enables Goolge Maps API using Google API Key
  * returns nothing
@@ -135,7 +138,8 @@ function init() {
   		async: false,
   		dataType: 'json',
   		success: function (json) {
-    		years = json['years'].sort();
+    		census_years = json['census_years'].sort();
+    		election_years = json['election_years'].sort();
 			geounit_files['bg'] = json['bg_geojson'];
 			geounit_files['precinct'] = json['precinct_geojson'];
 			district_file = json['district_geojson'];
@@ -144,6 +148,9 @@ function init() {
 			district_title = json['title'];
   		}
 	});
+
+	years = census_years;
+	map_year = census_year;
 
 	$('h4#district-title').html(district_title);
 	
@@ -198,19 +205,19 @@ function init() {
 
 	set_select_box();
 	var select_box = document.getElementById('fields');
-	var selected_variable = select_box.options[select_box.selectedIndex].value
+	var selected_variable = select_box.options[select_box.selectedIndex].value;
 	google.maps.event.addDomListener(select_box, 'change', function() {
 		clear_map_data();
         load_map_data(select_box.options[select_box.selectedIndex].value);
         load_distribution_chart(select_box.options[select_box.selectedIndex].value);
-		load_district_chart();
+		load_district_chart(select_box.options[select_box.selectedIndex].value);
 		load_top_geounits(select_box.options[select_box.selectedIndex].value);
 		document.getElementById('geounit_chart').style.display = 'none';
     });
 
 	load_maps();
 	init_distribution_chart(selected_variable);
-	init_district_chart();
+	init_district_chart(selected_variable);
 	init_geounit_chart();
 }
 
@@ -290,6 +297,8 @@ function set_select_box() {
 function load_category(c, c_type) {
 	category = c;
 	category_type = c_type;
+	map_year = census_year;
+	years = census_years;
 	fields = categories[category][category_type]['fields'];
 	labels = categories[category][category_type]['labels'];
 	
@@ -318,24 +327,34 @@ function load_category(c, c_type) {
  * returns false
  *
  **/
-function load_election_results() {
-	category = c;
-	category_type = c_type;
-	fields = categories[category][category_type]['fields'];
-	labels = categories[category][category_type]['labels'];
+function load_election_results(y) {
+	map_year = y;
+	election_year = y;
+	years = election_years;
+	category = "Voting Results";
+	fields = categories[category]['fields'];
+	labels = categories[category]['labels'];
 	
-	if( property_name === 'PRECINCT' ) {
-		// remove the median income field if it's precinct
-		if( category === 'Income' && category_type === 'Census' ){
-			var index = fields.indexOf('median_income');
-			if (index > -1) {
-    			fields.splice(index, 1);
-			}
-		}
-	}
-
+	geounit_type = 'precinct';
+	property_name = 'PRECINCT';
+	
+	// clear geounits_layer
+	geounits_layer.forEach(function(feature){
+		geounits_layer.remove(feature);
+	});
+	
+	// clear the geounits which are highlighted from the previous distribution chart
+	hover_geounits = [];
+	
 	set_select_box();
-	google.maps.event.trigger(document.getElementById('fields'), 'change');
+	
+	geounits_layer.loadGeoJson(
+		geounit_files[geounit_type],
+		{ idPropertyName: property_name },
+		function (features) {
+			google.maps.event.trigger(document.getElementById('fields'), 'change');
+		}
+	);
 
 	return false;
 }
@@ -387,7 +406,7 @@ function load_geounit(geounit) {
 
 
 /**
- * load_map_data(selected_variable) combines the census data (TODO or election results)
+ * load_map_data(selected_variable) combines the census data or election results
  *
  * returns nothing
  *
@@ -396,15 +415,18 @@ function load_map_data(selected_variable) {
 	if(debug_is_on){	
 		console.log('Loading map data');
 	}
-	
+	var my_year = map_year;
+	if( category === 'Voting Results' && selected_variable === 'over_18' ){
+		my_year = census_year;
+	}
 	geounits_layer.forEach(function(feature){
 		var geoid = feature.getProperty(property_name);
 		if(debug_is_on){	
 			console.log('GEOID:  ' + geoid);
 			console.log('Geounit Type:  ' + geounit_type);
-			console.log(data[census_year][geounit_type.toString()]);
+			console.log(data[my_year][geounit_type.toString()]);
 		}
-		var data_value = parseInt(data[census_year][geounit_type.toString()][geoid.toString()][selected_variable]);
+		var data_value = parseInt(data[my_year][geounit_type.toString()][geoid.toString()][selected_variable]);
 		
 		// keep track of min and max values
 		if (data_value < district_min) {
@@ -514,6 +536,8 @@ function mouse_in_to_region(e) {
  		console.log('GEOID: ' + geoid );
  		console.log(data_label + ': ' + data_value);
 	}
+	document.getElementById('geoid-label').textContent = geounit_labels[geounit_type];
+	document.getElementById('geoid-value').textContent = geoid;
 	document.getElementById('data-label').textContent = data_label;
     document.getElementById('data-value').textContent = number_with_commas(data_value.toString());
     document.getElementById('data-box').style.display = 'block';
@@ -542,8 +566,10 @@ function mouse_out_of_region(e) {
  **/
 function click_region(e) {
 	var geoid = e.feature.getProperty(property_name);
+	var select_box = document.getElementById('fields');
+	var selected_variable = select_box.options[select_box.selectedIndex].value;
 
-	load_geounit_chart(geoid);
+	load_geounit_chart(geoid, selected_variable);
 }
 
 
@@ -601,11 +627,17 @@ function load_distribution_chart(selected_variable) {
 	if(debug_is_on){ 
 		console.log('Loading distribution chart'); 
 	}
-	
+	if( (district_max - district_min) < chart_intervals) {
+		chart_intervals = (district_max - district_min)
+	}
 	var barchart_values = new Array(chart_intervals).fill(0)
 	var barchart_labels = [];
 	var title = "Districtwide Distribution for " + labels[selected_variable];
+	var my_year = map_year;
 	
+	if( category === 'Voting Results' && selected_variable === 'over_18' ){
+		my_year = census_year;
+	}
 	for (var i = 0; i < barchart_values.length; i++) {
 		var interval = Math.floor(
 			((i + 1) * ((district_max - district_min) / chart_intervals)) + district_min
@@ -615,16 +647,23 @@ function load_distribution_chart(selected_variable) {
 	distribution_geounits = new Array(chart_intervals).fill([])
 	geounits_layer.forEach(function(feature){
 		var geoid = feature.getProperty(property_name);
-		var data_value = parseInt(data[census_year][geounit_type][geoid.toString()][selected_variable]);
+		console.log('geoid:  ' + geoid + '  selected_variable:  ' + selected_variable);
+		var data_value = parseInt(data[my_year][geounit_type][geoid.toString()][selected_variable]);
+		console.log('geoid:  ' + geoid + '  data_value:  ' + data_value);
 		var interval = Math.floor(
 			(chart_intervals - 1) *
 			((data_value - district_min) /
 			(district_max - district_min))
 		);
+		if(debug_is_on){ 
+			console.log('geoid:  ' + geoid + '  interval:  ' + interval);
+		}
+		
 		barchart_values[interval] = barchart_values[interval] + 1;
 		var t = distribution_geounits[interval].concat();
 		t.push(geoid);
 		distribution_geounits[interval] = t.concat();
+		distribution_geounits[interval].push(geoid);
 		
 	});
 	distribution_chart_data.labels = barchart_labels;
@@ -642,6 +681,7 @@ function load_distribution_chart(selected_variable) {
 
 	window.bar_chart.options.title.text = title;
 	window.bar_chart.update();
+	chart_intervals = 100;
 }
 
 
@@ -671,40 +711,81 @@ function mouse_on_distrib_chart(e, a) {
  * returns
  * 
  **/
-function init_district_chart() {
+function init_district_chart(selected_variable) {
 	var barchart_values = [];
 	var barchart_labels = [];
 
-	for(var i = 0; i < fields.length; i++) {
-		barchart_labels[i] = labels[fields[i]];
-	}
-	var index = barchart_labels.indexOf(labels['median_income']);
-	if (index > -1) {
-    	barchart_labels.splice(index, 1);
-	}
-
 	district_chart_data = {
-			labels: barchart_labels,
+			labels: [],
 			datasets: []
 		};
-	
-	for(var j = 0; j < years.length; j++) {
-		barchart_values = [];
-		console.log("Year:  " + years[j] );
-		for(var i = 0; i < fields.length; i++) {
-			barchart_values[i] = data[years[j]]['district'][fields[i]];
+
+	// if the map category is displaying voting results
+	if( category === 'Voting Results' ) {
+		var my_fields = [];
+		var my_year = election_year;
+		if( selected_variable === 'us_dem_pot' || selected_variable === 'reg_per' || selected_variable === 'dem_per' ) {
+			my_fields = ['reg_per', 'dem_per'];
+		}
+		else {
+			my_fields = [ 'over_18', 'registered_voters', 'us_hou_dem', 'dem_diff' ];
+		}
+		for(var i = 0; i < my_fields.length; i++) {
+			if(map_year === '2018' && my_fields[i] === 'over_18') {
+				my_year = census_year;
+				console.log("Year: " + my_year);
+			}
+			else {
+				my_year = election_year;
+			}
+			barchart_values[i] = data[my_year]['district'][my_fields[i]];
 		}
 		var colorName = colorNames[district_chart_data.datasets.length % colorNames.length];
 		var dsColor = chartColors[colorName];
 		district_chart_data.datasets.push({
-				label: years[j],
+				label: my_year,
 				backgroundColor: color(dsColor).alpha(0.5).rgbString(),
 				borderColor: dsColor,
 				borderWidth: 1,
 				data: barchart_values,
 			});
+		// set barchart labels
+		for(var i = 0; i < my_fields.length; i++) {
+			barchart_labels[i] = labels[my_fields[i]];
+		}
+	}
+	// else populate district chart using default configuration
+	else {
+		for(var j = 0; j < years.length; j++) {
+			barchart_values = [];
+			console.log("Year:  " + years[j] );
+			var my_year = years[j];
+
+			for(var i = 0; i < fields.length; i++) {
+				barchart_values[i] = data[my_year]['district'][fields[i]];
+			}
+			var colorName = colorNames[district_chart_data.datasets.length % colorNames.length];
+			var dsColor = chartColors[colorName];
+			district_chart_data.datasets.push({
+					label: years[j],
+					backgroundColor: color(dsColor).alpha(0.5).rgbString(),
+					borderColor: dsColor,
+					borderWidth: 1,
+					data: barchart_values,
+				});
+		}
+		// set barchart labels
+		for(var i = 0; i < fields.length; i++) {
+			barchart_labels[i] = labels[fields[i]];
+		}
+		var index = barchart_labels.indexOf(labels['median_income']);
+		if (index > -1) {
+			barchart_labels.splice(index, 1);
+		}
 	}
 	
+	district_chart_data.labels = barchart_labels;
+
 	var ctx = document.getElementById('district_chart').getContext('2d');
 	
 	var title = category + " for District";
@@ -721,6 +802,14 @@ function init_district_chart() {
 				display: true,
 				text: title,
 				fontsize: 18
+			},
+			scales: {
+				yAxes: [{
+					ticks: { 
+						suggestedMin: 0,
+						suggestedMax: 100
+					}
+				}]
 			}
 		}
 	});
@@ -732,39 +821,59 @@ function init_district_chart() {
  * returns
  * 
  **/
-function load_district_chart() {
+function load_district_chart(selected_variable) {
 	if(debug_is_on) {	
 		console.log('Loading district chart');
 	}
 
 	var barchart_values = [];
 	var barchart_labels = [];
-	
-	district_chart_data.datasets.splice(0, district_chart_data.datasets.length);
 
-	for(var j = 0; j < years.length; j++) {
-		barchart_values = [];
-		for(var i = 0; i < fields.length; i++) {
-			barchart_values[i] = data[years[j]]['district'][fields[i]];
-		}
-		var colorName = colorNames[district_chart_data.datasets.length % colorNames.length];
-		var dsColor = chartColors[colorName];
-		district_chart_data.datasets.push({
-				label: years[j],
-				backgroundColor: color(dsColor).alpha(0.5).rgbString(),
-				borderColor: dsColor,
-				borderWidth: 1,
-				data: barchart_values,
-			});
+	// reset district chart
+	district_chart_data.datasets.splice(0, district_chart_data.datasets.length);
+	
+	// if the map category is displaying voting results
+		for(var j = 0; j < years.length; j++) {
+			var my_fields = [];
+			var my_year = years[j];
+			barchart_values = [];
+			if( category === 'Voting Results' ) {
+				if( selected_variable === 'us_hou_dem_pot' || selected_variable === 'reg_per' || selected_variable === 'dem_per' ) {
+					my_fields = ['reg_per', 'dem_per'];
+				}
+				else {
+					my_fields = [ 'over_18', 'registered_voters', 'us_hou_dem', 'dem_diff' ];
+				}
+			}
+			else {
+				my_fields = fields;
+			}
+			for(var i = 0; i < my_fields.length; i++) {
+				if(my_year === '2018' && my_fields[i] === 'over_18') {
+					barchart_values[i] = data[census_year]['district'][my_fields[i]];
+				}
+				else {
+					barchart_values[i] = data[my_year]['district'][my_fields[i]];
+				}
+			}
+			var colorName = colorNames[district_chart_data.datasets.length % colorNames.length];
+			var dsColor = chartColors[colorName];
+			district_chart_data.datasets.push({
+					label: my_year,
+					backgroundColor: color(dsColor).alpha(0.5).rgbString(),
+					borderColor: dsColor,
+					borderWidth: 1,
+					data: barchart_values,
+				});
 	}
-	for(var i = 0; i < fields.length; i++) {
-		barchart_labels[i] = labels[fields[i]];
+	for(var i = 0; i < my_fields.length; i++) {
+		barchart_labels[i] = labels[my_fields[i]];
 	}
 	var index = barchart_labels.indexOf(labels['median_income']);
 	if (index > -1) {
-    	barchart_labels.splice(index, 1);
+		barchart_labels.splice(index, 1);
 	}
-
+	
 	district_chart_data.labels = barchart_labels;
 	
 	var title = category + " for District";
@@ -784,9 +893,6 @@ function init_geounit_chart() {
 	var barchart_values = [];
 	var barchart_labels = [];
 	
-	for(var i = 0; i < fields.length; i++) {
-		barchart_labels[i] = labels[fields[i]];
-	}
 	geounit_chart_data = {
 			labels: barchart_labels,
 			datasets: [{
@@ -813,6 +919,14 @@ function init_geounit_chart() {
 				display: true,
 				text: title,
 				fontsize: 18
+			},
+			scales: {
+				yAxes: [{
+					ticks: { 
+						suggestedMin: 0,
+						suggestedMax: 100
+					}
+				}]
 			}
 		}
 	});
@@ -826,7 +940,7 @@ function init_geounit_chart() {
  * returns
  * 
  **/
-function load_geounit_chart(geoid) {
+function load_geounit_chart(geoid, selected_variable) {
 	if(debug_is_on) {	
 		console.log('Loading geounit chart');
 	}
@@ -835,27 +949,53 @@ function load_geounit_chart(geoid) {
 	var barchart_labels = [];
 	var title = category + " for " + geounit_labels[geounit_type] + " " + geoid.toString();
 
+	// reset the datasets
 	geounit_chart_data.datasets.splice(0, geounit_chart_data.datasets.length);
-
+	
+	// if the map category is displaying voting results
 	for(var j = 0; j < years.length; j++) {
+		var my_year = years[j]; 
+		var my_fields;
 		barchart_values = [];
-		for(var i = 0; i < fields.length; i++) {
-			barchart_values[i] = data[years[j]][geounit_type.toString()][geoid.toString()][fields[i]];
+		if(debug_is_on) {	
+			console.log(my_year);
+		}
+		if( category === 'Voting Results' ) {
+			if( selected_variable === 'us_hou_dem_pot' || selected_variable === 'reg_per' || selected_variable === 'dem_per' ) {
+				my_fields = ['us_hou_dem_pot', 'reg_per', 'dem_per'];
+			}
+			else {
+				my_fields = [ 'over_18', 'registered_voters', 'us_hou_dem', 'dem_diff' ];
+			}
+		}
+		else {
+			my_fields = fields;
+		}
+		for(var i = 0; i < my_fields.length; i++) {
+			if(my_year === '2018' && my_fields[i] === 'over_18') {
+				barchart_values[i] = data[census_year][geounit_type.toString()][geoid.toString()][my_fields[i]];
+			}
+			else {
+				if(debug_is_on) {	
+					console.log( data[my_year][geounit_type.toString()][geoid.toString()][my_fields[i]]);
+				}
+				barchart_values[i] = data[my_year][geounit_type.toString()][geoid.toString()][my_fields[i]];
+			}
 		}
 		var colorName = colorNames[geounit_chart_data.datasets.length % colorNames.length];
 		var dsColor = chartColors[colorName];
 		geounit_chart_data.datasets.push({
-				label: years[j],
+				label: my_year,
 				backgroundColor: color(dsColor).alpha(0.5).rgbString(),
 				borderColor: dsColor,
 				borderWidth: 1,
 				data: barchart_values,
 			});
 	}
-	for(var i = 0; i < fields.length; i++) {
-		barchart_labels[i] = labels[fields[i]];
+	// set the x-axis labels
+	for(var i = 0; i < my_fields.length; i++) {
+		barchart_labels[i] = labels[my_fields[i]];
 	}
-
 	geounit_chart_data.labels = barchart_labels;
 	
 	window.geounit_chart.options.title.text = title;
@@ -883,9 +1023,14 @@ function load_top_geounits(selected_variable) {
 	var table = header_row;
 	var geounits = [];
 	var total = 0;
+	var my_year = map_year;
+	if( category === 'Voting Results' && selected_variable === 'over_18' ){
+		my_year = census_year;
+	}
+
 	geounits_layer.forEach(function(feature){
 		var geoid = feature.getProperty(property_name);
-		var data_value = parseInt(data[census_year][geounit_type][geoid.toString()][selected_variable]);
+		var data_value = parseInt(data[my_year][geounit_type][geoid.toString()][selected_variable]);
 		
 		total = parseInt(data_value) + total;
 		geounits.push([geoid, data_value]);
