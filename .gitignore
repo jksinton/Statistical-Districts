@@ -11,6 +11,7 @@ settings*.ini
 *.csv
 *.zip
 *.png
+*.xlsx
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
