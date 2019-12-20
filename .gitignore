@@ -13,6 +13,16 @@ settings*.ini
 *.png
 *.xlsx
 
+# shapefiles
+*.dbf
+*.cpg.
+*.prj
+*.sbn
+*.sbx
+*.shp
+*.shx
+*.xml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
