@@ -53,8 +53,10 @@ var geounit_labels = {
 var geounits_layer;
 var hover_geounits = [];
 var labels;
+var leg_body;
 var map;
-var map_year = '2016';
+var map_year = '2017';
+var map_zoom = 11;
 var property_name;
 var slideout;
 var years;
@@ -145,9 +147,14 @@ function init() {
 			district_file = json['district_geojson'];
 			latitude = json['lat'];
 			longitude = json['lng'];
+			leg_body = json['leg_body'];
 			district_title = json['title'];
   		}
 	});
+	
+	if(leg_body === 'STATE-REP') {
+		map_zoom = 12;
+	}
 
 	years = census_years;
 	map_year = census_year;
@@ -164,7 +171,7 @@ function init() {
 	});	
 	var uluru = {lat: latitude, lng: longitude};
     map = new google.maps.Map(document.getElementById('map'), {
-    	zoom: 11,
+    	zoom: map_zoom,
     	center: uluru,
     	fullscreenControl: true
     });
@@ -422,8 +429,10 @@ function load_map_data(selected_variable) {
 	geounits_layer.forEach(function(feature){
 		var geoid = feature.getProperty(property_name);
 		if(debug_is_on){	
-			console.log('GEOID:  ' + geoid);
+			console.log('Year:  ' + my_year);
 			console.log('Geounit Type:  ' + geounit_type);
+			console.log('GEOID:  ' + geoid);
+			console.log('Selected Variable:  ' + selected_variable);
 			console.log(data[my_year][geounit_type.toString()]);
 		}
 		var data_value = parseInt(data[my_year][geounit_type.toString()][geoid.toString()][selected_variable]);
