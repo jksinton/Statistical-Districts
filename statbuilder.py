@@ -19,7 +19,7 @@ from statlib import Utilities
 
 # GLOBAL CONSTANTS
 
-VERSION = '0.5.0'
+VERSION = '0.4.10'
 
 def read_settings(args):
     """Read the settings stored in settings.ini
@@ -31,8 +31,8 @@ def read_settings(args):
     # Default values
     state = 48
     district = 7
-    leg_body = 'US-REP'
-    census_year = '2017'
+    office = 'US-REP'
+    census_year = '2018'
     election_year = '2018'
     voting_precincts = None
     voting_results = None
@@ -52,8 +52,8 @@ def read_settings(args):
         state = args.state
     if args.district:
         district = args.district
-    if args.leg_body:
-        leg_body = args.leg_body
+    if args.office:
+        office = args.office
     if args.voting_precincts:
         voting_precincts = args.voting_precincts
     if args.voting_results:
@@ -63,7 +63,7 @@ def read_settings(args):
                 "census_api_key": census_api_key,
                 "state": state,
                 "district": district,
-                "leg_body": leg_body,
+                "office": office,
                 "census_year": census_year,
                 "election_year": election_year,
                 "voting_precincts": voting_precincts,
@@ -84,7 +84,7 @@ def get_command_line_args():
     parser = argparse.ArgumentParser(description='Build stats for a given Congressional District')
     parser.add_argument('-s','--state', help='State of District, e.g., TX')
     parser.add_argument('-d','--district', help='District No., e.g., 7')
-    parser.add_argument('-l','--leg-body', help='Legislative Body, e.g., US-REP, US-SEN, STATE-REP, or STATE-SEN')
+    parser.add_argument('-o','--office', help='Elected office, e.g., US-REP, US-SEN, STATE-REP, or STATE-SEN')
     parser.add_argument('-y','--census-year', help='Year of Census data to build')
     parser.add_argument('-p','--voting-precincts', help='Estimate stats for voting precincts using geospatial vector file, e.g., shapefile or GEOJSON')
     parser.add_argument('-q','--election-year', help='Year of voting results')
@@ -105,7 +105,7 @@ def main():
     census_api_key = settings['census_api_key']
     state = settings['state']
     district = settings['district']
-    leg_body = settings['leg_body']
+    office = settings['office']
     census_year = settings['census_year']
     election_year = settings['election_year']
     voting_precincts_file = settings['voting_precincts']
@@ -114,7 +114,7 @@ def main():
     my_district = District( 
                 state=state, 
                 district=district, 
-                leg_body=leg_body,
+                office=office,
                 census_year=census_year,
                 election_year=election_year
             )

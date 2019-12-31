@@ -15,8 +15,7 @@
 // maybe even have separate files for the charts and the maps
 var categories;
 var category;
-var category_type;
-var census_year = '2017';
+var census_year = '2018';
 var chartColors = {
 	red: 'rgb(255, 99, 132)',
 	green: 'rgb(75, 192, 192)',
@@ -38,7 +37,7 @@ var district_layer;
 var district_min = Number.MAX_VALUE; 
 var district_max = -Number.MAX_VALUE;
 var district_title = "";
-var debug_is_on = false;
+var debug_is_on = true;
 var election_year = '2018';
 var fields;
 var field_graph_data;
@@ -55,7 +54,7 @@ var hover_geounits = [];
 var labels;
 var leg_body;
 var map;
-var map_year = '2017';
+var map_year = '2018';
 var map_zoom = 11;
 var property_name;
 var slideout;
@@ -131,7 +130,6 @@ function init() {
 	
 	// set default settings for window.onLoad
 	category = 'Age';
-	category_type = 'Census';
 	geounit_type = 'bg';
 	property_name = 'GEOID';
 
@@ -207,8 +205,8 @@ function init() {
 	var databox = document.getElementById('data-box');
     map.controls[google.maps.ControlPosition.RIGHT_TOP].push(databox);
 	
-	fields = categories[category][category_type]['fields'];
-	labels = categories[category][category_type]['labels'];
+	fields = categories[category]['fields'];
+	labels = categories[category]['labels'];
 
 	set_select_box();
 	var select_box = document.getElementById('fields');
@@ -301,17 +299,16 @@ function set_select_box() {
  * returns false
  *
  **/
-function load_category(c, c_type) {
+function load_category(c) {
 	category = c;
-	category_type = c_type;
 	map_year = census_year;
 	years = census_years;
-	fields = categories[category][category_type]['fields'];
-	labels = categories[category][category_type]['labels'];
+	fields = categories[category]['fields'];
+	labels = categories[category]['labels'];
 	
 	if( property_name === 'PRECINCT' ) {
 		// remove the median income field if it's precinct
-		if( category === 'Income' && category_type === 'Census' ){
+		if( category === 'Income' ){
 			var index = fields.indexOf('median_income');
 			if (index > -1) {
     			fields.splice(index, 1);
@@ -373,8 +370,8 @@ function load_election_results(y) {
  * returns false
  **/
 function load_geounit(geounit) {
-	fields = categories[category][category_type]['fields'];
-	labels = categories[category][category_type]['labels'];
+	fields = categories[category]['fields'];
+	labels = categories[category]['labels'];
 
 	geounit_type = geounit;
 	property_name = 'GEOID';
@@ -382,7 +379,7 @@ function load_geounit(geounit) {
 		property_name = 'PRECINCT';
 		
 		// remove the median income field if it's precinct
-		if( category === 'Income' && category_type === 'Census' ){
+		if( category === 'Income' ){
 			var index = fields.indexOf('median_income');
 			if (index > -1) {
     			fields.splice(index, 1);
@@ -733,20 +730,21 @@ function init_district_chart(selected_variable) {
 	if( category === 'Voting Results' ) {
 		var my_fields = [];
 		var my_year = election_year;
-		if( selected_variable === 'us_dem_pot' || selected_variable === 'reg_per' || selected_variable === 'dem_per' ) {
-			my_fields = ['reg_per', 'dem_per'];
+		if( selected_variable === 'us_hou_dem_pot' || selected_variable === 'reg_per' || selected_variable === 'hou_dem_per' ) {
+			my_fields = ['reg_per', 'hou_dem_per'];
 		}
 		else {
 			my_fields = [ 'over_18', 'registered_voters', 'us_hou_dem', 'dem_diff' ];
 		}
 		for(var i = 0; i < my_fields.length; i++) {
-			if(map_year === '2018' && my_fields[i] === 'over_18') {
+			/*if(map_year === '2018' && my_fields[i] === 'over_18') {
 				my_year = census_year;
 				console.log("Year: " + my_year);
 			}
 			else {
 				my_year = election_year;
-			}
+			}*/
+			my_year = election_year;
 			barchart_values[i] = data[my_year]['district'][my_fields[i]];
 		}
 		var colorName = colorNames[district_chart_data.datasets.length % colorNames.length];
@@ -847,8 +845,8 @@ function load_district_chart(selected_variable) {
 			var my_year = years[j];
 			barchart_values = [];
 			if( category === 'Voting Results' ) {
-				if( selected_variable === 'us_hou_dem_pot' || selected_variable === 'reg_per' || selected_variable === 'dem_per' ) {
-					my_fields = ['reg_per', 'dem_per'];
+				if( selected_variable === 'us_hou_dem_pot' || selected_variable === 'reg_per' || selected_variable === 'hou_dem_per' ) {
+					my_fields = ['reg_per', 'hou_dem_per'];
 				}
 				else {
 					my_fields = [ 'over_18', 'registered_voters', 'us_hou_dem', 'dem_diff' ];
@@ -970,8 +968,8 @@ function load_geounit_chart(geoid, selected_variable) {
 			console.log(my_year);
 		}
 		if( category === 'Voting Results' ) {
-			if( selected_variable === 'us_hou_dem_pot' || selected_variable === 'reg_per' || selected_variable === 'dem_per' ) {
-				my_fields = ['us_hou_dem_pot', 'reg_per', 'dem_per'];
+			if( selected_variable === 'us_hou_dem_pot' || selected_variable === 'reg_per' || selected_variable === 'hou_dem_per' ) {
+				my_fields = ['us_hou_dem_pot', 'reg_per', 'hou_dem_per'];
 			}
 			else {
 				my_fields = [ 'over_18', 'registered_voters', 'us_hou_dem', 'dem_diff' ];
